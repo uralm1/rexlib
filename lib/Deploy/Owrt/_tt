@@ -1,0 +1,32 @@
+#!/usr/bin/perl
+use v5.12;
+use Data::Dumper;
+
+my $tcn_ref = [
+  ['gwtest1','10.2.13.131'],
+  ['gwtest1','10.2.13.131'],
+  ['gwtest2','10.2.13.132'],
+  ['gwtest2','10.2.13.132'],
+  ['gwtest2','10.2.13.132'],
+  ['erebus','10.2.13.130'],
+];
+
+#say Dumper $tcn_ref;
+#say Dumper remove_dups([map {$_->[0]} @$tcn_ref]);
+#say Dumper remove_dups([map {$_->[1]} @$tcn_ref]);
+
+req_test();
+
+sub remove_dups {
+  my $aref = shift;
+  my %seen;
+  return [grep { ! $seen{ $_ }++ } @$aref];
+}
+
+sub req_test {
+  state $loop_cont = 0;
+  die "Infinite loop prevented" if $loop_cont++ >= 20;
+  say "Reqursion loop $loop_cont";
+  sleep(1);
+  req_test();
+}

@@ -1,0 +1,12 @@
+#!/bin/bash
+
+#cd /var/www/net/rexlib
+#rex -u root -H "10.15.0.3" UtilSSH:install_openssh_user_sshkey --user=ttt
+#rex -d -u root -H "bikini.uwc.local" UtilRex:uptime
+rex -u root -H "srv-echo.uwc.local" Virt:list_vm
+#rex Check:diagnose --host=gwknskust --ticket --ticket_from=uuu@uwc.ufanet.ru
+#rex Check:diagnose --host=gwknskust 
+#rex -u root -H "adup.uwc.ufanet.ru" Cert:install --cert=/tmp/cert.pem --key=/tmp/key.pem
+#rex -u root -H "bikini.uwc.local" Cert:install --cert=/tmp/cert.pem --key=/tmp/key.pem
+
+echo "Exit code: $?."
