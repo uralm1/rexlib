@@ -1,9 +1,4 @@
 Name: Deploy::Virt
-Description: {{ DESCRIPTION }}
-Author: {{ your name <your.name@email.com> }}
-License: {{ THE LICENSE }}
-
-# Only if you have dependencies to other Rex Modules.
-Require:
-   - Other::Rex::Module
-   - 2nd::Rex::Module
+Description: Deploy lxc virtualization host servers
+Author: ural
+License: Apache 2.0

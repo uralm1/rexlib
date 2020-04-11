@@ -1,9 +1,11 @@
 Name: Check
-Description: {{ DESCRIPTION }}
-Author: {{ your name <your.name@email.com> }}
-License: {{ THE LICENSE }}
-
-# Only if you have dependencies to other Rex Modules.
+Description: Network host diagnostics
+Author: ural
+License: Apache 2.0
 Require:
-   - Other::Rex::Module
-   - 2nd::Rex::Module
+  - UtilRex::ping
+PerlRequire:
+  - Check::ResultProcessor
+  - Mail::Sender
+  - Encode
+  - DBI

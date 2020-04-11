@@ -1,5 +1,5 @@
 Name: UtilSSH
-Description: {{ DESCRIPTION }}
-Author: {{ your name <your.name@email.com> }}
-License: {{ THE LICENSE }}
+Description: SSH configuration tasks
+Author: ural
+License: Apache 2.0
 

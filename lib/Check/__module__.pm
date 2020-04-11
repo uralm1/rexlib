@@ -3,6 +3,7 @@ package Check;
 use Rex -feature => ['1.3'];
 use Data::Dumper;
 
+use DBI;
 use Check::ResultProcessor;
 
 sub nd {
