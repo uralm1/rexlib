@@ -1,27 +1,9 @@
 use Rex -feature => [qw(disable_strict_host_key_checking)];
+use Rex::CMDB;
+
 use Data::Dumper;
 
-
-# for Net::OpenSSH
-user "ural";
-#password "";
-key_auth;
-
-# use Net::SSH2 instead openssh
-#set connection => "SSH";
-private_key "/opt/rundeck/var/storage/content/keys/globkey";
-public_key "/opt/rundeck/var/storage/content/keys/globkey_pub";
-
-# database parameters
-set dbhost => 'server';
-set dbname => 'database';
-set dbuser => 'user';
-set dbpass => 'pass';
-
-# mailing parameters
-set mail_smtp => 'mail.uwc.ufanet.ru';
-set mail_from => 'ural@uwc.ufanet.ru';
-
+# requires should be before cmdb
 require UtilSSH;
 require UtilRex;
 require Deploy::Owrt;
@@ -30,10 +12,27 @@ require Check;
 require Virt;
 require Cert;
 
+set cmdb => {
+  type => 'YAML',
+  path => ['cmdb/config.yml'],
+};
+
+# for Net::OpenSSH
+user "ural";
+#password "";
+key_auth;
+
+# use Net::SSH2 instead openssh
+#set connection => "SSH";
+private_key get cmdb('private_key');
+public_key get cmdb('public_key');
+
+
 desc "Test run";
 task "testrun", sub {
-  my $r = run_task "UtilRex:ping", params => {host=>"10.2.78.74"}, on=>"erebus";
-  if ($r) { say "Ping is true, $r"; } else { say "Ping is false, $r"; }
+  #my $r = run_task "UtilRex:ping", params => {host=>"10.2.78.74"}, on=>"erebus";
+  #if ($r) { say "Ping is true, $r"; } else { say "Ping is false, $r"; }
+  say Dumper \get cmdb;
 };
 
 desc "Long job";

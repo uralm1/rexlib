@@ -40,7 +40,7 @@ task diagnose => sub {
  
   my $rp = Check::ResultProcessor->new();
 
-  my $dbh = DBI->connect("DBI:mysql:database=".get('dbname').';host='.get('dbhost'), get('dbuser'), get('dbpass')) or 
+  my $dbh = DBI->connect("DBI:mysql:database=".get(cmdb('dbname')).';host='.get(cmdb('dbhost')), get(cmdb('dbuser')), get(cmdb('dbpass'))) or 
     die "Connection to the database failed.\n";
   $dbh->do("SET NAMES 'UTF8'");
 

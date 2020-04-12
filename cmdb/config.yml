@@ -1,0 +1,14 @@
+
+private_key: '_keys/globkey'
+public_key: '_keys/globkey_pub'
+
+# database parameters
+dbhost: dbserver
+dbname: netmap
+dbuser: user
+dbpass: pass
+
+# mailing parameters
+mail_smtp: mailserver
+mail_from: 'user@mailserver'
+

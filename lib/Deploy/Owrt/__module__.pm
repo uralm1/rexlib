@@ -87,7 +87,7 @@ sub read_db {
   my $_host = shift;
   die "Hostname is empty. Invalid task parameters.\n" unless $_host; 
 
-  $dbh = DBI->connect("DBI:mysql:database=".get('dbname').';host='.get('dbhost'), get('dbuser'), get('dbpass')) or 
+  $dbh = DBI->connect("DBI:mysql:database=".get(cmdb('dbname')).';host='.get(cmdb('dbhost')), get(cmdb('dbuser')), get(cmdb('dbpass'))) or 
     die "Connection to the database failed.\n";
   $dbh->do("SET NAMES 'UTF8'");
 
@@ -768,7 +768,7 @@ task "gen_node", sub {
   die "Invalid parameters, run as: rex gen_node --newnode=hostname.\n" unless $_host;
 
   # prepare database
-  my $dbh = DBI->connect("DBI:mysql:database=".get('dbname').';host='.get('dbhost'), get('dbuser'), get('dbpass')) or 
+  my $dbh = DBI->connect("DBI:mysql:database=".get(cmdb('dbname')).';host='.get(cmdb('dbhost')), get(cmdb('dbuser')), get(cmdb('dbpass'))) or 
     die "Connection to the database failed.\n";
   $dbh->do("SET NAMES 'UTF8'");
 
@@ -815,7 +815,7 @@ task "dist_nodes", sub {
     ensure => "directory";
 
   # build host files for all nodes in database
-  my $dbh = DBI->connect("DBI:mysql:database=".get('dbname').';host='.get('dbhost'), get('dbuser'), get('dbpass')) or 
+  my $dbh = DBI->connect("DBI:mysql:database=".get(cmdb('dbname')).';host='.get(cmdb('dbhost')), get(cmdb('dbuser')), get(cmdb('dbpass'))) or 
     die "Connection to the database failed.\n";
   $dbh->do("SET NAMES 'UTF8'");
 
