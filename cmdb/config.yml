@@ -1,4 +1,6 @@
 
+user: ural
+password: ''
 private_key: '_keys/globkey'
 public_key: '_keys/globkey_pub'
 

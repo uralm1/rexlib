@@ -7,6 +7,10 @@
 #rex Check:diagnose --host=gwknskust --ticket --ticket_from=uuu@uwc.ufanet.ru
 #rex Check:diagnose --host=gwknskust 
 #rex -u root -H "bikini.uwc.local" Cert:install --cert=/tmp/cert.pem --key=/tmp/key.pem
-rex -d -u root -H "bikini.uwc.local" UtilRex:uptime
+#rex -d -u root -H "bikini.uwc.local" UtilRex:uptime
+
+#rex -H 10.0.1.1 UtilRex:dump_system_information
+#rex -H 10.0.1.1 UtilSSH:install_openssh_sshkey
+rex -H 10.0.1.1 Deploy:Owrt:show_router
 
 echo "Exit code: $?."

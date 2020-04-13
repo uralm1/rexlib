@@ -7,7 +7,7 @@ desc "Install public key to Dropbear authorized_keys, for OpenWrt";
 task "install_dropbear_sshkey", sub {
   if (operating_system_is("OpenWrt")) {
     file "/etc/dropbear/authorized_keys",
-      source => get(cmdb('globkey_pub')),
+      source => get(cmdb('public_key')),
       mode => 600;
     say "Keyfile is installed to dropbear.";
   } else {
@@ -30,7 +30,7 @@ task "install_openssh_sshkey", sub {
     mode => 755;
 
   file "/etc/ssh/authorized_keys",
-    source => get(cmdb('globkey_pub')),
+    source => get(cmdb('public_key')),
     mode => 600,
     on_change => sub {
       say "Keyfile installed to /etc/ssh/authorized_keys.";
@@ -65,7 +65,7 @@ task "install_openssh_user_sshkey", sub {
   }
   say "Installing sshkey to user: $_user, $home/.ssh/authorized_keys file...";
   file "$home/.ssh/authorized_keys",
-    source => get(cmdb('globkey_pub')),
+    source => get(cmdb('public_key')),
     mode => 600,
     owner => "$_user",
     on_change => sub { 

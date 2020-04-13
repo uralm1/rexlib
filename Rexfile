@@ -18,8 +18,8 @@ set cmdb => {
 };
 
 # for Net::OpenSSH
-user "ural";
-#password "";
+user get cmdb('user');
+#password get cmdb('password');
 key_auth;
 
 # use Net::SSH2 instead openssh
