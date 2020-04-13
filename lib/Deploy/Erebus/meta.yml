@@ -1,0 +1,8 @@
+Name: Deploy::Erebus
+Description: Deploy erebus router
+Author: ural
+License: Apache 2.0
+PerlRequire:
+  - File::Basename
+  - DBI
+  - NetAddr::IP

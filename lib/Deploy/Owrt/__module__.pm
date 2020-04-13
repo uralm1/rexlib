@@ -45,20 +45,20 @@ desc "Install perl for Rex, for images<1.9";
 task "install_perl", sub {
   my $output = run "opkg install perl perlbase-bytes perlbase-data perlbase-digest perlbase essential perlbase-file perlbase-xsloader";
   say $output;
-};
+}, {dont_register => TRUE};
 
 desc "Create openwrt_release, openwrt_version for Rex, for images<1.10";
 task "fix_openwrt_detect", sub {
   my $output = run "touch /etc/openwrt_release /etc/openwrt_version";
   say $output;
-};
+}, {dont_register => TRUE};
 
 
 desc "x86 primary configuration: enable login, disable startup failsafe prompt";
 task "x86_preconf", sub {
   die "Unsupported operating system!\n" unless operating_system_is('OpenWrt');
   my $os_ver = operating_system_version();
-  die "Unsupported firmware version!\n" if ($os_ver < 113 || $os_ver > 399);
+  die "Unsupported firmware version!\n" if ($os_ver < 113 || $os_ver > 113);
   die "Unsupported system architecture!\n" unless is_x86();
 
   say "Primary x86 configuration started...";
@@ -311,7 +311,7 @@ sub is_x86 {
 };
 
 
-desc "Show router information (for owrt routers)";
+desc "OWRT routers: Show router information";
 task "show_router", sub {
   #dump_system_information;
   my %i = get_system_information;
@@ -335,7 +335,7 @@ task "show_router", sub {
 #
 ### Configuration
 #
-desc "DEPLOY ROUTER (for owrt routers)
+desc "OWRT routers: DEPLOY ROUTER
   rex -H 10.0.1.1 deploy_router --confhost=gwtest1";
 task "deploy_router", sub {
   my $ch = shift->{confhost};
@@ -359,7 +359,7 @@ task "deploy_router", sub {
 
 
 
-desc "Configure system parameters (for ow routers)";
+desc "OWRT routers: Configure system parameters";
 # if --confhost=host parameter is specified, host configuration is read
 # from the database, otherwise uses current
 task "conf_system", sub {
@@ -407,7 +407,7 @@ task "conf_system", sub {
 };
 
 
-desc "Configure network (for ow routers)";
+desc "OWRT routers: Configure network";
 # if --confhost=host parameter is specified, host configuration is read
 # from the database, otherwise uses current
 task "conf_net", sub {
@@ -535,7 +535,7 @@ task "conf_net", sub {
 };
 
 
-desc "Configure firewall (for ow routers)";
+desc "OWRT routers: Configure firewall";
 # if --confhost=host parameter is specified, host configuration is read
 # from the database, otherwise uses current
 task "conf_fw", sub {
@@ -669,7 +669,7 @@ task "conf_fw", sub {
 };
 
 
-desc "Configure tinc tunnel (for ow routers)";
+desc "OWRT routers: Configure tinc tunnel";
 # if --confhost=host parameter is specified, host configuration is read
 # from the database, otherwise uses current
 task "conf_tun", sub {

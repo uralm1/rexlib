@@ -11,6 +11,7 @@
 
 #rex -H 10.0.1.1 UtilRex:dump_system_information
 #rex -H 10.0.1.1 UtilSSH:install_openssh_sshkey
-rex -H 10.0.1.1 Deploy:Owrt:show_router
+#rex -H 10.0.1.1 Deploy:Owrt:show_router
+rex -H 10.0.1.1 Deploy:Erebus:conf_system
 
 echo "Exit code: $?."

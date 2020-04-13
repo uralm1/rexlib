@@ -7,6 +7,7 @@ use Data::Dumper;
 require UtilSSH;
 require UtilRex;
 require Deploy::Owrt;
+require Deploy::Erebus;
 require Deploy::Virt;
 require Check;
 require Virt;
