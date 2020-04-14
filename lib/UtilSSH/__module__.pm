@@ -35,10 +35,13 @@ task "install_openssh_sshkey", sub {
     on_change => sub {
       say "Keyfile installed to /etc/ssh/authorized_keys.";
     };
-  append_or_amend_line "/etc/ssh/sshd_config",
+
+  my $f = '/etc/ssh/sshd_config';
+  delete_lines_according_to qr/^PermitEmptyPasswords yes/, $f;
+  append_or_amend_line $f,
     line => "PubkeyAuthentication yes",
-    regexp => qr/^#?PubkeyAuthentication/,
-  append_or_amend_line "/etc/ssh/sshd_config",
+    regexp => qr/^#?PubkeyAuthentication/;
+  append_or_amend_line $f,
     line => "AuthorizedKeysFile /etc/ssh/authorized_keys",
     regexp => qr/^#?AuthorizedKeysFile/,
     on_change => sub {
@@ -72,10 +75,12 @@ task "install_openssh_user_sshkey", sub {
       say "Keyfile is installed to $home/.ssh/authorized_keys.";
     };
   
-  append_or_amend_line "/etc/ssh/sshd_config",
+  my $f = '/etc/ssh/sshd_config';
+  delete_lines_according_to qr/^PermitEmptyPasswords yes/, $f;
+  append_or_amend_line $f,
     line => "PubkeyAuthentication yes",
-    regexp => qr/^#?PubkeyAuthentication/,
-  append_or_amend_line "/etc/ssh/sshd_config",
+    regexp => qr/^#?PubkeyAuthentication/;
+  append_or_amend_line $f,
     line => "AuthorizedKeysFile .ssh/authorized_keys",
     regexp => qr/^#?AuthorizedKeysFile/,
     on_change => sub {
