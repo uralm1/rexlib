@@ -2,16 +2,30 @@ package Check::ResultProcessor;
 
 use strict;
 use warnings;
+use v5.12;
 #use utf8;
-use feature ':5.10';
 
-use Mail::Sender;
+use Email::Sender::Simple qw(try_to_sendmail);
+use Email::Sender::Transport::SMTP qw();
+use Email::Simple;
 use Encode;
 
+# $rp = Check::ResultProcessor->new(
+#   mail_smtp => 'mail.uwc.ufanet.ru',
+#   mail_from => 'ural@uwc.ufanet.ru',
+#   mail_ticket_to => 'otrs@uwc.ufanet.ru',
+# );
 sub new {
-  my $class = shift;
+  my ($class, %args) = @_;
   my $self = {};
   $self->{buffer} = '';
+
+  $self->{mail_smtp} = 'mail.uwc.ufanet.ru';
+  $self->{mail_from} = 'ural@uwc.ufanet.ru';
+  $self->{mail_ticket_to} = 'otrs@uwc.ufanet.ru';
+  for (qw/mail_smtp mail_from mail_ticket_to/) {
+    $self->{$_} = $args{$_} if defined $args{$_};
+  }
 
   return bless $self, $class;
 }
@@ -39,32 +53,37 @@ sub email {
   die "Email parameter missing" unless $rep_to;
   my $host = shift; $host = '' unless defined $host;
 
-  my $f1 = 'ural@uwc.ufanet.ru';
   # Группа сетевого администрирования
-  my $f2 = << "EOF";
-"=?UTF-8?Q?=D0=93=D1=80=D1=83=D0=BF=D0=BF=D0=B0_?=
-=?UTF-8?Q?=D1=81=D0=B5=D1=82=D0=B5=D0=B2=D0=BE=D0=B3=D0=BE_?=
-=?UTF-8?Q?=D0=B0=D0=B4=D0=BC=D0=B8=D0=BD=D0=B8=D1=81=D1=82=D1=80=D0=B8?=
-=?UTF-8?Q?=D1=80=D0=BE=D0=B2=D0=B0=D0=BD=D0=B8=D1=8F?=" <$f1>
-EOF
+  my $f2 = '"'.encode('MIME-Header', decode_utf8('Группа сетевого администрирования'))."\" <$self->{mail_from}>";
   my $subj = "Результат проверки узла $host корпоративной сети";
   $subj = encode('MIME-Header', decode_utf8($subj));
 
+  my $email = Email::Simple->create(
+    header => [
+      To => $rep_to,
+      #From => $f2,
+      #Subject => $subj,
+      #'MIME-Version' => '1.0',
+      'Content-Type' => 'text/plain; charset=UTF-8',
+      #'Content-Transfer-Encoding' => 'quoted-printable',
+    ],
+    body => $self->{buffer},
+  );
+  $email->header_set('From', $f2);
+  $email->header_set('Subject', $subj);
+
   say "\nОтправка отчёта по электронной почте на $rep_to...";
 
-  my $s = new Mail::Sender {
-    smtp => 'mail.uwc.ufanet.ru',
-    from => $f1,
-    fake_from => $f2,
-    to => $rep_to,
-    on_errors => undef,
-  } or die "Error: can't create mail sender object.\n";
-
-  $s->MailMsg({ subject => $subj,
-    charset => 'UTF-8',
-    encoding => 'quoted-printable',
-    msg => decode_utf8($self->{buffer}),
-  }) or die "Error: can't mail report: $s->{'error_msg'}\n";
+  try_to_sendmail(
+    $email,
+    { from => $self->{mail_from},
+      to => $rep_to,
+      transport => Email::Sender::Transport::SMTP->new({
+	host => $self->{mail_smtp},
+	port => 25,
+      })
+    }
+  ) or die "Error: can't mail report\n";
 }
 
 # $obj->make_ticket('hatypov@uwc.ufanet.ru', 'gwsouth3');
@@ -82,19 +101,31 @@ sub make_ticket {
 
   say "\nСоздание заявки от $ticket_from...";
 
-  my $s = new Mail::Sender {
-    smtp => 'mail.uwc.ufanet.ru',
-    from => $ticket_from,
-    fake_from => $ticket_from,
-    to => 'otrs@uwc.ufanet.ru',
-    on_errors => undef,
-  } or die "Error: can't create mail sender object.\n";
+  my $email = Email::Simple->create(
+    header => [
+      To => $self->{mail_ticket_to},
+      #From => $ticket_from,
+      #Subject => $subj1,
+      #'MIME-Version' => '1.0',
+      'Content-Type' => 'text/plain; charset=UTF-8',
+      #'Content-Transfer-Encoding' => 'quoted-printable',
+    ],
+    body => 'Неисправность: '.$subj."\n\nПо заявке проведена автоматическая диагностика неисправности. Результаты.\n".$self->{buffer},
+  );
+  $email->header_set('From', $ticket_from);
+  $email->header_set('Subject', $subj1);
 
-  $s->MailMsg({ subject => $subj1,
-    charset => 'UTF-8',
-    encoding => 'quoted-printable',
-    msg => decode_utf8('Неисправность: '.$subj."\n\nПо заявке проведена автоматическая диагностика неисправности. Результаты.\n".$self->{buffer}),
-  }) or die "Error: can't mail report: $s->{'error_msg'}\n";
+  try_to_sendmail(
+    $email,
+    { from => $ticket_from,
+      to => $self->{mail_ticket_to},
+      transport => Email::Sender::Transport::SMTP->new({
+	host => $self->{mail_smtp},
+	port => 25,
+      })
+    }
+  ) or die "Error: can't mail report\n";
+
   say "Заявка будет создана в системе техподдержки в течение 10 минут.";
 }
 

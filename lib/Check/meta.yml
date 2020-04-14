@@ -5,7 +5,8 @@ License: Apache 2.0
 Require:
   - UtilRex::ping
 PerlRequire:
-  - Check::ResultProcessor
-  - Mail::Sender
+  - Email::Sender::Simple
+  - Email::Sender::Transport::SMTP
+  - Email::Simple
   - Encode
   - DBI

@@ -38,7 +38,11 @@ task diagnose => sub {
   }
   #say "DEBUG: ticket=$ticket, ticket_from=$ticket_from";
  
-  my $rp = Check::ResultProcessor->new();
+  my $rp = Check::ResultProcessor->new(
+    mail_smtp => get(cmdb('mail_smtp')),
+    mail_from => get(cmdb('mail_from')),
+    mail_ticket_to => get(cmdb('mail_ticket_to')),
+  );
 
   my $dbh = DBI->connect("DBI:mysql:database=".get(cmdb('dbname')).';host='.get(cmdb('dbhost')), get(cmdb('dbuser')), get(cmdb('dbpass'))) or 
     die "Connection to the database failed.\n";
