@@ -237,15 +237,21 @@ task "conf_system", sub {
   uci "set system.\@system[0].hostname=\'$hostparam{host}\'";
   uci "set system.\@system[0].timezone=\'UTC-5\'";
   uci "set system.\@system[0].ttylogin=\'1\'";
-  uci "set system.\@system[0].log_ip=\'".$hostparam{log_ip}."\'";
-  uci "set system.\@system[0].log_port=\'514\'";
+  if (defined $hostparam{log_ip} && $hostparam{log_ip} ne '') {
+    uci "set system.\@system[0].log_ip=\'$hostparam{log_ip}\'";
+    uci "set system.\@system[0].log_port=\'514\'";
+  }
   say "/etc/config/system configured.";
 
   # ntp
-  uci "set system.ntp.enabled=1";
   uci "set system.ntp.enable_server=0";
-  uci "delete system.ntp.server";
-  uci "add_list system.ntp.server=\'".$hostparam{ntp_ip}."\'";
+  if (defined $hostparam{ntp_ip} && $hostparam{ntp_ip} ne '') {
+    uci "set system.ntp.enabled=1";
+    uci "delete system.ntp.server";
+    uci "add_list system.ntp.server=\'$hostparam{ntp_ip}\'";
+  } else {
+    uci "set system.ntp.enabled=0";
+  }
   say "NTP server configured.";
 
   #uci "show system";
