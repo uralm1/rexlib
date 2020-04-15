@@ -33,7 +33,7 @@ desc "Test run";
 task "testrun", sub {
   #my $r = run_task "UtilRex:ping", params => {host=>"10.2.78.74"}, on=>"erebus";
   #if ($r) { say "Ping is true, $r"; } else { say "Ping is false, $r"; }
-  say Dumper \get cmdb;
+  #say Dumper \get cmdb;
 };
 
 desc "Long job";

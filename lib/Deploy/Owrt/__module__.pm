@@ -86,6 +86,7 @@ my $dbh;
 sub read_db {
   my $_host = shift;
   die "Hostname is empty. Invalid task parameters.\n" unless $_host; 
+  die "Erebus router must be configured by Deploy:Erebus:* tasks.\n" if $_host =~ /^erebus$/; 
 
   $dbh = DBI->connect("DBI:mysql:database=".get(cmdb('dbname')).';host='.get(cmdb('dbhost')), get(cmdb('dbuser')), get(cmdb('dbpass'))) or 
     die "Connection to the database failed.\n";
@@ -288,6 +289,7 @@ sub check_par {
   #say "OS release: ".operating_system_release();
   my $os_ver = operating_system_version();
   die "Unsupported firmware version!\n" if ($os_ver < 113 || $os_ver > 399);
+  1;
 }
 
 
@@ -346,13 +348,13 @@ task "deploy_router", sub {
   say "Router manufacturer from database: $hostparam{manufacturer}" if $hostparam{manufacturer};
   say "Router type from database: $hostparam{eq_name}" if $hostparam{eq_name};
   say "Department: $hostparam{dept_name}\n" if $hostparam{dept_name};
-  run_task "Deploy:Owrt:conf_system", on=>connection->server;
+  Deploy::Owrt::conf_system();
   sleep 1;
-  run_task "Deploy:Owrt:conf_net", on=>connection->server;
+  Deploy::Owrt::conf_net();
   sleep 1;
-  run_task "Deploy:Owrt:conf_fw", on=>connection->server;
+  Deploy::Owrt::conf_fw();
   sleep 1;
-  run_task "Deploy:Owrt:conf_tun", on=>connection->server;
+  Deploy::Owrt::conf_tun();
   say "Router deployment/OpenWRT/ finished for $hostparam{host}";
   say "!!! Reboot router manually to apply changes !!!";
 };
@@ -448,15 +450,15 @@ task "conf_net", sub {
 
   uci "set network.lan.ifname=\'$lan_ifname\'";
   uci "set network.lan.proto=\'static\'";
-  uci "set network.lan.ipaddr=\'".$hostparam{lan_ip}."\'";
-  uci "set network.lan.netmask=\'".$hostparam{lan_netmask}."\'";
+  uci "set network.lan.ipaddr=\'$hostparam{lan_ip}\'";
+  uci "set network.lan.netmask=\'$hostparam{lan_netmask}\'";
   uci "set network.lan.ipv6=0";
 
   uci "set network.wan.ifname=\'$wan_ifname\'";
   uci "set network.wan.proto=\'static\'";
-  uci "set network.wan.ipaddr=\'".$hostparam{wan_ip}."\'";
-  uci "set network.wan.netmask=\'".$hostparam{wan_netmask}."\'";
-  uci "set network.wan.gateway=\'".$hostparam{wan_gateway}."\'";
+  uci "set network.wan.ipaddr=\'$hostparam{wan_ip}\'";
+  uci "set network.wan.netmask=\'$hostparam{wan_netmask}\'";
+  uci "set network.wan.gateway=\'$hostparam{wan_gateway}\'";
   uci "set network.wan.ipv6=0";
 
   quci "delete network.wan6";
@@ -466,9 +468,9 @@ task "conf_net", sub {
     my $rname = $_->{'name'};
     uci "set network.$rname=\'route\'";
     uci "set network.$rname.interface=\'lan\'";
-    uci "set network.$rname.target=\'".$_->{target}."\'";
-    uci "set network.$rname.netmask=\'".$_->{netmask}."\'";
-    uci "set network.$rname.gateway=\'".$_->{gateway}."\'";
+    uci "set network.$rname.target=\'$_->{target}\'";
+    uci "set network.$rname.netmask=\'$_->{netmask}\'";
+    uci "set network.$rname.gateway=\'$_->{gateway}\'";
   }
 
   # auto wan routes
@@ -476,19 +478,19 @@ task "conf_net", sub {
     my $rname = $_->{'name'};
     uci "set network.$rname=\'route\'";
     uci "set network.$rname.interface=\'wan\'";
-    uci "set network.$rname.target=\'".$_->{target}."\'";
-    uci "set network.$rname.netmask=\'".$_->{netmask}."\'";
-    uci "set network.$rname.gateway=\'".$_->{gateway}."\'";
+    uci "set network.$rname.target=\'$_->{target}\'";
+    uci "set network.$rname.netmask=\'$_->{netmask}\'";
+    uci "set network.$rname.gateway=\'$_->{gateway}\'";
   }
   say "Network routes configured.";
 
   # dns
   quci "delete network.lan.dns";
   foreach (@{$hostparam{lan_dns}}) {
-    uci "add_list network.lan.dns=\'".$_."\'";
+    uci "add_list network.lan.dns=\'$_\'";
   }
   quci "delete network.lan.dns_search";
-  #uci "add_list network.lan.dns_search=\'".$hostparam{dhcp_dns_suffix}."\'";
+  #uci "add_list network.lan.dns_search=\'$hostparam{dhcp_dns_suffix}\'";
   say "/etc/config/network created and configured.";
 
   # dhcp
@@ -502,12 +504,12 @@ task "conf_net", sub {
   uci "set dhcp.\@dnsmasq[0].domainneeded=0";
   uci "set dhcp.\@dnsmasq[0].boguspriv=0";
   uci "set dhcp.\@dnsmasq[0].rebind_protection=0";
-  uci "set dhcp.\@dnsmasq[0].domain=\'".$hostparam{dhcp_dns_suffix}."\'";
+  uci "set dhcp.\@dnsmasq[0].domain=\'$hostparam{dhcp_dns_suffix}\'";
   quci "delete dhcp.\@dnsmasq[0].local";
   uci "set dhcp.\@dnsmasq[0].logqueries=0";
 
-  uci "set dhcp.lan.start=\'".$hostparam{dhcp_start}."\'";
-  uci "set dhcp.lan.limit=\'".$hostparam{dhcp_limit}."\'";
+  uci "set dhcp.lan.start=\'$hostparam{dhcp_start}\'";
+  uci "set dhcp.lan.limit=\'$hostparam{dhcp_limit}\'";
   uci "set dhcp.lan.leasetime=\'24h\'";
   # disable dhcp at all
   uci "set dhcp.lan.ignore=".(($hostparam{dhcp_on} > 0)?0:1);
@@ -520,8 +522,8 @@ task "conf_net", sub {
   quci "delete dhcp.lan.dhcp_option";
   #uci "add_list dhcp.lan.dhcp_option=\'3,192.168.33.81\'"; #router
   #uci "add_list dhcp.lan.dhcp_option=\'6,10.14.0.2,10.14.0.1\'"; #dns
-  uci "add_list dhcp.lan.dhcp_option=\'15,".$hostparam{dhcp_dns_suffix}."\'";
-  uci "add_list dhcp.lan.dhcp_option=\'44,".$hostparam{dhcp_wins}."\'"; #wins
+  uci "add_list dhcp.lan.dhcp_option=\'15,$hostparam{dhcp_dns_suffix}\'";
+  uci "add_list dhcp.lan.dhcp_option=\'44,$hostparam{dhcp_wins}\'"; #wins
   uci "add_list dhcp.lan.dhcp_option=\'46,8\'";
 
   quci "delete dhcp.\@host[-1]" foreach 0..9;

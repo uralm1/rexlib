@@ -13,9 +13,7 @@ my %hostparam = (
   log_ip => '',
   ntp_ip => '',
   ssh_icmp_from_wans_ips => ['',],
-  wan_ip => '',
-  wan_netmask => '',
-  wan_gateway => '',
+  wans => [{wan_ip=>'',wan_netmask=>'',wan_gw=>'',wan_vlan=>''},],
   auto_wan_routes => [{name=>'',target=>'',netmask=>'',gateway=>''},],
   lan_ip => '',
   lan_netmask => '',
@@ -45,12 +43,14 @@ my $dbh;
 sub read_db {
   my $_host = shift;
   die "Hostname is empty. Invalid task parameters.\n" unless $_host; 
+  die "Only *erebus* router is supported by this task.\n" unless $_host =~ /^erebus$/;
 
   $dbh = DBI->connect("DBI:mysql:database=".get(cmdb('dbname')).';host='.get(cmdb('dbhost')), get(cmdb('dbuser')), get(cmdb('dbpass'))) or 
     die "Connection to the database failed.\n";
   $dbh->do("SET NAMES 'UTF8'");
 
   my $hr = $dbh->selectrow_hashref("SELECT \
+routers.id AS router_id, \
 routers.host_name AS host, \
 router_equipment.eq_name AS eq_name, \
 router_equipment.manufacturer AS manufacturer, \
@@ -58,9 +58,6 @@ departments.dept_name AS dept_name, \
 routers.log_ip AS log_ip, \
 routers.ntp_ip AS ntp_ip, \
 routers.ssh_icmp_from_wans_ips AS ssh_icmp_from_wans_ips_unparsed, \
-wans.ip AS wan_ip, \
-wans.mask AS wan_netmask, \
-wans.gw AS wan_gateway, \
 lans.ip AS lan_ip, \
 lans.mask AS lan_netmask, \
 lans.routes AS lan_routes_unparsed, \
@@ -71,15 +68,28 @@ lans.dhcp_limit AS dhcp_limit, \
 lans.dhcp_dns_suffix AS dhcp_dns_suffix, \
 lans.dhcp_wins AS dhcp_wins \
 FROM routers \
-INNER JOIN wans ON wans.router_id = routers.id \
 INNER JOIN lans ON lans.router_id = routers.id \
-LEFT OUTER JOIN router_equipment ON router_equipment.id = routers.equipment_id \
-LEFT OUTER JOIN departments ON departments.id = routers.placement_dept_id \
+LEFT OUTER JOIN router_equipment ON router_equipment.id = routers.equipment_id LEFT OUTER JOIN departments ON departments.id = routers.placement_dept_id \
 WHERE host_name = ?", {}, $_host);
   die "There's no such host in the database, or database error.\n" unless $hr;
-  say Dumper $hr;
+  #say Dumper $hr;
 
   %hostparam = %$hr;
+
+  # read wans
+  my $ar = $dbh->selectall_arrayref("SELECT \
+ip AS wan_ip, \
+mask AS wan_netmask, \
+gw AS wan_gw, \
+vlan AS wan_vlan \
+FROM wans \
+WHERE router_id = ?", {Slice=>{}, MaxRows=>10}, $hostparam{router_id});
+  die "Fetching wans database failure.\n" unless $ar;
+  #say Dumper $ar;
+
+  push(@{$hostparam{wans}}, { %$_ }) for (@$ar);
+  #say Dumper \%hostparam;
+
 =for comment
   # parse routes
   my @ra = split /;/, $hostparam{lan_routes_unparsed};
@@ -172,7 +182,7 @@ INNER JOIN wans ON wans.router_id = routers.id");
 =cut
 
   $dbh->disconnect;
-  say "Host configuration has successfully been read from the database.";
+  say "Erebus configuration has successfully been read from the database.";
   1;
 }
 
@@ -184,6 +194,7 @@ sub check_par {
   #say "OS release: ".operating_system_release();
   my $os_ver = operating_system_version();
   die "Unsupported firmware version!\n" if ($os_ver < 114 || $os_ver > 399);
+  1;
 }
 
 
@@ -203,10 +214,35 @@ sub quci {
 #
 ### Configuration
 #
+desc "Erebus router: DEPLOY ROUTER
+  rex -H 10.0.1.1 Deploy:Erebus:deploy_router [--confhost=erebus]";
+task "deploy_router", sub {
+  my $ch = shift->{confhost} || 'erebus';
+  read_db $ch;
+  check_par;
+
+  say "Router deployment/Erebus/ started for $hostparam{host}";
+  say "Router manufacturer from database: $hostparam{manufacturer}" if $hostparam{manufacturer};
+  say "Router type from database: $hostparam{eq_name}" if $hostparam{eq_name};
+  say "Department: $hostparam{dept_name}\n" if $hostparam{dept_name};
+  #Deploy::Erebus::conf_system();
+  #sleep 1;
+  Deploy::Erebus::conf_net();
+  sleep 1;
+  #run_task "Deploy:Owrt:conf_fw", on=>connection->server;
+  #sleep 1;
+  #run_task "Deploy:Owrt:conf_tun", on=>connection->server;
+  say "Router deployment/Erebus/ finished for $hostparam{host}";
+  say "!!! Reboot router manually to apply changes !!!";
+};
+
 
 desc "Erebus router: Configure system parameters";
+# if --confhost=erebus parameter is specified, host configuration is read
+# from the database, otherwise uses current
 task "conf_system", sub {
-  read_db 'erebus';
+  my $ch = shift->{confhost};
+  read_db $ch if $ch;
   check_par;
 
   say "System configuration started for $hostparam{host}";
@@ -261,6 +297,67 @@ task "conf_system", sub {
 };
 
 
+desc "Erebus router: Configure network";
+# if --confhost=erebus parameter is specified, host configuration is read
+# from the database, otherwise uses current
+task "conf_net", sub {
+  my $ch = shift->{confhost};
+  read_db $ch if $ch;
+  check_par;
+
+  say "Network configuration started for $hostparam{host}";
+
+  my $tpl_net_file = 'files/network.x86.tpl';
+  my $lan_ifname = 'eth0';
+  my $wan_ifname = 'eth1';
+
+  file "/etc/config/network",
+    owner => "ural",
+    group => "root",
+    mode => 644,
+    content => template($tpl_net_file);
+  uci "revert network";
+
+  # create new ula on first re-boot
+  file "/etc/uci-defaults/12_network-generate-ula",
+    source => "files/12_network-generate-ula";
+
+  uci "set network.lan.ifname=\'$lan_ifname\'";
+  uci "set network.lan.proto=\'static\'";
+  #uci "set network.lan.ipaddr=\'$hostparam{lan_ip}\'";
+  #uci "set network.lan.netmask=\'$hostparam{lan_netmask}\'";
+  uci "set network.lan.ipaddr=\'10.0.1.1\'"; #FIXME
+  uci "set network.lan.netmask=\'255.192.0.0\'"; #FIXME
+  uci "set network.lan.ipv6=0";
+  uci "delete network.lan.type";
+
+  uci "set network.admsw=interface";
+  uci "set network.admsw.ifname=\'$wan_ifname\'";
+  uci "set network.admsw.proto=\'static\'";
+  uci "set network.admsw.ipaddr=\'192.168.1.3\'";
+  uci "set network.admsw.netmask=\'255.255.255.0\'";
+  uci "set network.admsw.ipv6=0";
+
+  for (sort {$a->{wan_vlan} <=> $b->{wan_vlan}} @{$hostparam{wans}}) {
+    my $vid = $_->{wan_vlan};
+    uci "set network.wan_vlan$vid=interface";
+    uci "set network.wan_vlan$vid.ifname=\'$wan_ifname.$vid\'";
+    uci "set network.wan_vlan$vid.proto=\'static\'";
+    uci "set network.wan_vlan$vid.ipaddr=\'$_->{wan_ip}\'";
+    uci "set network.wan_vlan$vid.netmask=\'$_->{wan_netmask}\'";
+    uci "set network.wan_vlan$vid.ipv6=0";
+  }
+
+  quci "delete network.wan";
+  quci "delete network.wan6";
+
+  uci "show network";
+  #uci "show dhcp";
+  uci "commit network";
+  #uci "commit dhcp";
+
+  say "\nNetwork configuration finished for $hostparam{host}. Restarting the router will change the IP-s!!!.\n";
+};
 
 
 ##################################
