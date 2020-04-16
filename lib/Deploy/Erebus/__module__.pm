@@ -88,7 +88,6 @@ WHERE router_id = ?", {Slice=>{}, MaxRows=>10}, $hostparam{router_id});
   #say Dumper $ar;
 
   push(@{$hostparam{wans}}, { %$_ }) for (@$ar);
-  #say Dumper \%hostparam;
 
 =for comment
   # parse routes
@@ -101,6 +100,7 @@ WHERE router_id = ?", {Slice=>{}, MaxRows=>10}, $hostparam{router_id});
     $i++;
   }
   $hostparam{lan_routes} = \@rres;
+=cut
   # parse dns_list
   $hostparam{lan_dns} = [split /,/, $hostparam{lan_dns_unparsed}];
   # parse dhcp_start
@@ -110,6 +110,7 @@ WHERE router_id = ?", {Slice=>{}, MaxRows=>10}, $hostparam{router_id});
   # parse ssh_icmp_from_wans_ips
   $hostparam{ssh_icmp_from_wans_ips} = [split /,/, $hostparam{ssh_icmp_from_wans_ips_unparsed}];
 
+=for comment
   # read vpn parameters
   $hr = $dbh->selectrow_hashref("SELECT \
 routers.host_name AS tun_node_name, \
@@ -180,6 +181,7 @@ INNER JOIN wans ON wans.router_id = routers.id");
   $hostparam{auto_wan_routes} = \@w_route_list;
   #say Dumper $hostparam{auto_wan_routes};
 =cut
+  say Dumper \%hostparam;
 
   $dbh->disconnect;
   say "Erebus configuration has successfully been read from the database.";
@@ -310,6 +312,7 @@ task "conf_net", sub {
   my $tpl_net_file = 'files/network.x86.tpl';
   my $lan_ifname = 'eth0';
   my $wan_ifname = 'eth1';
+  my @extif_list;
 
   file "/etc/config/network",
     owner => "ural",
@@ -337,11 +340,12 @@ task "conf_net", sub {
   uci "set network.admsw.ipaddr=\'192.168.1.3\'";
   uci "set network.admsw.netmask=\'255.255.255.0\'";
   uci "set network.admsw.ipv6=0";
+  push @extif_list, 'admsw';
 
   # reorganize wans array to hash for aliasing support
   my %vif;
   push(@{$vif{$_->{wan_vlan}}}, $_) for (@{$hostparam{wans}});
-  say Dumper \%vif;
+  #say Dumper \%vif;
 
   for (sort keys %vif) {
     my $vid = $_;
@@ -355,6 +359,7 @@ task "conf_net", sub {
       uci "set network.wan_vlan${vid}_$aliasid.ipaddr=\'$_->{wan_ip}\'";
       uci "set network.wan_vlan${vid}_$aliasid.netmask=\'$_->{wan_netmask}\'";
       uci "set network.wan_vlan${vid}_$aliasid.ipv6=0";
+      push @extif_list, "wan_vlan${vid}_$aliasid";
       $aliasid++;
     }
   }
@@ -362,10 +367,72 @@ task "conf_net", sub {
   quci "delete network.wan";
   quci "delete network.wan6";
 
-  uci "show network";
-  #uci "show dhcp";
+  # dns
+  quci "delete network.lan.dns";
+  foreach (@{$hostparam{lan_dns}}) {
+    uci "add_list network.lan.dns=\'$_\'";
+  }
+  quci "delete network.lan.dns_search";
+  #uci "add_list network.lan.dns_search=\'$hostparam{dhcp_dns_suffix}\'";
+  say "/etc/config/network created and configured.";
+
+  # dhcp
+  file "/etc/config/dhcp",
+    owner => "ural",
+    group => "root",
+    mode => 644,
+    content => template("files/dhcp.0.tpl");
+  uci "revert dhcp";
+
+  uci "set dhcp.\@dnsmasq[0].domainneeded=0";
+  uci "set dhcp.\@dnsmasq[0].boguspriv=0";
+  uci "set dhcp.\@dnsmasq[0].rebind_protection=0";
+  uci "set dhcp.\@dnsmasq[0].domain=\'$hostparam{dhcp_dns_suffix}\'";
+  quci "delete dhcp.\@dnsmasq[0].local";
+  uci "set dhcp.\@dnsmasq[0].logqueries=0";
+
+  quci "delete dhcp.\@dnsmasq[0].interface";
+  uci "add_list dhcp.\@dnsmasq[0].interface=\'lan\'"; # dnsmasq listen only lan
+
+  # wan is not used
+  quci "delete dhcp.wan";
+  # disable dhcp on external interfaces
+  for (@extif_list) {
+    uci "set dhcp.$_=dhcp";
+    uci "set dhcp.$_.interface=\'$_\'";
+    uci "set dhcp.$_.ignore=1";
+  }
+  # configure dhcp on lan
+  uci "set dhcp.lan.start=\'$hostparam{dhcp_start}\'";
+  uci "set dhcp.lan.limit=\'$hostparam{dhcp_limit}\'";
+  uci "set dhcp.lan.leasetime=\'24h\'";
+  # disable dhcp at all
+  uci "set dhcp.lan.ignore=".(($hostparam{dhcp_on} > 0)?0:1);
+  # only allow static leases
+  #uci "set dhcp.lan.dynamicdhcp=0";
+  # dhcpv6
+  uci "set dhcp.lan.dhcpv6=\'disabled\'";
+  uci "set dhcp.lan.ra=\'disabled\'";
+
+  quci "delete dhcp.lan.dhcp_option";
+  #uci "add_list dhcp.lan.dhcp_option=\'3,192.168.33.81\'"; #router
+  #uci "add_list dhcp.lan.dhcp_option=\'6,10.14.0.2,10.14.0.1\'"; #dns
+  uci "add_list dhcp.lan.dhcp_option=\'15,$hostparam{dhcp_dns_suffix}\'";
+  uci "add_list dhcp.lan.dhcp_option=\'44,$hostparam{dhcp_wins}\'"; #wins
+  uci "add_list dhcp.lan.dhcp_option=\'46,8\'";
+
+  quci "delete dhcp.\@host[-1]" foreach 0..9;
+  # static leases TODO
+  #uci "add dhcp host";
+  #uci "set dhcp.\@host[-1].ip=\'192.168.33.82\'";
+  #uci "set dhcp.\@host[-1].mac=\'00:11:22:33:44:55\'";
+  #uci "set dhcp.\@host[-1].name=\'host1\'";
+  say "DHCP and DNS configured.";
+
+  #uci "show network";
+  uci "show dhcp";
   uci "commit network";
-  #uci "commit dhcp";
+  uci "commit dhcp";
 
   say "\nNetwork configuration finished for $hostparam{host}. Restarting the router will change the IP-s!!!.\n";
 };
