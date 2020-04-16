@@ -338,14 +338,25 @@ task "conf_net", sub {
   uci "set network.admsw.netmask=\'255.255.255.0\'";
   uci "set network.admsw.ipv6=0";
 
-  for (sort {$a->{wan_vlan} <=> $b->{wan_vlan}} @{$hostparam{wans}}) {
-    my $vid = $_->{wan_vlan};
-    uci "set network.wan_vlan$vid=interface";
-    uci "set network.wan_vlan$vid.ifname=\'$wan_ifname.$vid\'";
-    uci "set network.wan_vlan$vid.proto=\'static\'";
-    uci "set network.wan_vlan$vid.ipaddr=\'$_->{wan_ip}\'";
-    uci "set network.wan_vlan$vid.netmask=\'$_->{wan_netmask}\'";
-    uci "set network.wan_vlan$vid.ipv6=0";
+  # reorganize wans array to hash for aliasing support
+  my %vif;
+  push(@{$vif{$_->{wan_vlan}}}, $_) for (@{$hostparam{wans}});
+  say Dumper \%vif;
+
+  for (sort keys %vif) {
+    my $vid = $_;
+    my $val = $vif{$_}; # aref
+    my $aliasid = 0;
+    # sort aliases by ip to keep things persistent
+    for (sort {$a->{wan_ip} cmp $b->{wan_ip}} @$val) {
+      uci "set network.wan_vlan${vid}_$aliasid=interface";
+      uci "set network.wan_vlan${vid}_$aliasid.ifname=\'$wan_ifname.$vid\'";
+      uci "set network.wan_vlan${vid}_$aliasid.proto=\'static\'";
+      uci "set network.wan_vlan${vid}_$aliasid.ipaddr=\'$_->{wan_ip}\'";
+      uci "set network.wan_vlan${vid}_$aliasid.netmask=\'$_->{wan_netmask}\'";
+      uci "set network.wan_vlan${vid}_$aliasid.ipv6=0";
+      $aliasid++;
+    }
   }
 
   quci "delete network.wan";
