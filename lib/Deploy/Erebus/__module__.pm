@@ -359,6 +359,18 @@ task "conf_net", sub {
   quci "delete network.wan";
   quci "delete network.wan6";
 
+  # rt_tables
+  my $rt_file = '/etc/iproute2/rt_tables';
+  append_or_amend_line $rt_file,
+    line => '90	r_uwc',
+    regexp => qr/^90\s+r_uwc$/;
+  append_or_amend_line $rt_file,
+    line => '100	r_beeline',
+    regexp => qr/^100\s+r_beeline$/,
+    on_change => sub {
+      say "Routing tables r_uwc and r_beeline were added to rt_tables.";
+    };
+
   # dns
   quci "delete network.lan.dns";
   foreach (@{$hostparam{lan_dns}}) {
