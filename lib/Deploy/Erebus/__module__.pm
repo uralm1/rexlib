@@ -334,14 +334,6 @@ task "conf_net", sub {
   uci "set network.lan.ipv6=0";
   uci "delete network.lan.type";
 
-  uci "set network.admsw=interface";
-  uci "set network.admsw.ifname=\'$wan_ifname.100\'";
-  uci "set network.admsw.proto=\'static\'";
-  uci "set network.admsw.ipaddr=\'192.168.97.1\'";
-  uci "set network.admsw.netmask=\'255.255.255.0\'";
-  uci "set network.admsw.ipv6=0";
-  push @extif_list, 'admsw';
-
   # reorganize wans array to hash for aliasing support
   my %vif;
   push(@{$vif{$_->{wan_vlan}}}, $_) for (@{$hostparam{wans}});
