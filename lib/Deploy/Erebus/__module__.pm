@@ -14,7 +14,7 @@ my %hostparam = (
   log_ip => '',
   ntp_ip => '',
   ssh_icmp_from_wans_ips => ['',],
-  wans => [{wan_ip=>'',wan_netmask=>'',wan_vlan=>''},],
+  wan_ifs => {ifname=>{ip=>'',netmask=>'',vlan=>'',alias=>0},},
   auto_wan_routes => [{name=>'',target=>'',netmask=>'',gateway=>''},],
   lan_ip => '',
   lan_netmask => '',
@@ -44,7 +44,7 @@ my $dbh;
 sub read_db {
   my $_host = shift;
   die "Hostname is empty. Invalid task parameters.\n" unless $_host; 
-  #die "Only *erebus* router is supported by this task.\n" unless $_host =~ /^erebus$/;
+  die "Only *erebus* router is supported by this task.\n" unless $_host =~ /^erebus$/;
 
   $dbh = DBI->connect("DBI:mysql:database=".get(cmdb('dbname')).';host='.get(cmdb('dbhost')), get(cmdb('dbuser')), get(cmdb('dbpass'))) or 
     die "Connection to the database failed.\n";
@@ -81,15 +81,30 @@ WHERE host_name = ?", {}, $_host);
 
   # read wans
   my $ar = $dbh->selectall_arrayref("SELECT \
-ip AS wan_ip, \
-mask AS wan_netmask, \
-vlan AS wan_vlan \
+ip AS ip, \
+mask AS netmask, \
+vlan AS vlan \
 FROM wans \
 WHERE router_id = ?", {Slice=>{}, MaxRows=>10}, $hostparam{router_id});
   die "Fetching wans database failure.\n" unless $ar;
   #say Dumper $ar;
 
-  push(@{$hostparam{wans}}, { %$_ }) for (@$ar);
+  # reorganize wans array to hash for aliasing support
+  my %vif;
+  push(@{$vif{$_->{vlan}}}, $_) for (@$ar);
+  #say Dumper \%vif;
+
+  for (sort keys %vif) {
+    my $vid = $_;
+    my $val = $vif{$_}; # aref
+    my $aliasid = 0;
+    # sort aliases by ip to keep things persistent
+    for (sort {$a->{wan_ip} cmp $b->{wan_ip}} @$val) {
+      my $if_name = "wan_vlan${vid}_$aliasid";
+      $hostparam{wan_ifs}->{$if_name} = { %$_ };
+      $hostparam{wan_ifs}->{$if_name}->{alias} = $aliasid++;
+    }
+  }
 
 =for comment
   # parse routes
@@ -314,7 +329,6 @@ task "conf_net", sub {
   my $tpl_net_file = 'files/network.x86.tpl';
   my $lan_ifname = 'eth0';
   my $wan_ifname = 'eth1';
-  my @extif_list;
 
   file "/etc/config/network",
     owner => "ural",
@@ -336,26 +350,18 @@ task "conf_net", sub {
   uci "set network.lan.ipv6=0";
   uci "delete network.lan.type";
 
-  # reorganize wans array to hash for aliasing support
-  my %vif;
-  push(@{$vif{$_->{wan_vlan}}}, $_) for (@{$hostparam{wans}});
-  #say Dumper \%vif;
-
-  for (sort keys %vif) {
-    my $vid = $_;
-    my $val = $vif{$_}; # aref
-    my $aliasid = 0;
-    # sort aliases by ip to keep things persistent
-    for (sort {$a->{wan_ip} cmp $b->{wan_ip}} @$val) {
-      uci "set network.wan_vlan${vid}_$aliasid=interface";
-      uci "set network.wan_vlan${vid}_$aliasid.ifname=\'$wan_ifname.$vid\'";
-      uci "set network.wan_vlan${vid}_$aliasid.proto=\'static\'";
-      uci "set network.wan_vlan${vid}_$aliasid.ipaddr=\'$_->{wan_ip}\'";
-      uci "set network.wan_vlan${vid}_$aliasid.netmask=\'$_->{wan_netmask}\'";
-      uci "set network.wan_vlan${vid}_$aliasid.ipv6=0";
-      push @extif_list, "wan_vlan${vid}_$aliasid";
-      $aliasid++;
-    }
+  my $gw = ($hostparam{gateway}) ? NetAddr::IP->new($hostparam{gateway}) : undef;
+  my $wifs_r = $hostparam{wan_ifs};
+  for (sort keys %$wifs_r) {
+    my $wif_r = $wifs_r->{$_};
+    uci "set network.$_=interface";
+    uci "set network.$_.ifname=\'$wan_ifname.$wif_r->{vlan}\'";
+    uci "set network.$_.proto=\'static\'";
+    uci "set network.$_.ipaddr=\'$wif_r->{ip}\'";
+    uci "set network.$_.netmask=\'$wif_r->{netmask}\'";
+    my $net = NetAddr::IP->new($wif_r->{ip}, $wif_r->{netmask});
+    uci "set network.$_.gateway=\'$hostparam{gateway}\'" if ($gw && $net && $gw->within($net));
+    uci "set network.$_.ipv6=0";
   }
 
   quci "delete network.wan";
@@ -403,7 +409,7 @@ task "conf_net", sub {
   # wan is not used
   quci "delete dhcp.wan";
   # disable dhcp on external interfaces
-  for (@extif_list) {
+  for (sort keys %{$hostparam{wan_ifs}}) {
     uci "set dhcp.$_=dhcp";
     uci "set dhcp.$_.interface=\'$_\'";
     uci "set dhcp.$_.ignore=1";
@@ -435,7 +441,7 @@ task "conf_net", sub {
   #uci "set dhcp.\@host[-1].name=\'host1\'";
   say "DHCP and DNS configured.";
 
-  #uci "show network";
+  uci "show network";
   #uci "show dhcp";
   uci "commit network";
   uci "commit dhcp";
@@ -446,7 +452,7 @@ task "conf_net", sub {
 
 ##################################
 task "_t", sub {
-  read_db 'gwsouth2';
+  read_db 'erebus';
   check_par;
   say Dumper \%hostparam;
 }, {dont_register => TRUE};
