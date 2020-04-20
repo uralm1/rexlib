@@ -10,10 +10,11 @@ use feature 'state';
 # params
 my %hostparam = (
   host => '',
+  gateway => '',
   log_ip => '',
   ntp_ip => '',
   ssh_icmp_from_wans_ips => ['',],
-  wans => [{wan_ip=>'',wan_netmask=>'',wan_gw=>'',wan_vlan=>''},],
+  wans => [{wan_ip=>'',wan_netmask=>'',wan_vlan=>''},],
   auto_wan_routes => [{name=>'',target=>'',netmask=>'',gateway=>''},],
   lan_ip => '',
   lan_netmask => '',
@@ -43,7 +44,7 @@ my $dbh;
 sub read_db {
   my $_host = shift;
   die "Hostname is empty. Invalid task parameters.\n" unless $_host; 
-  die "Only *erebus* router is supported by this task.\n" unless $_host =~ /^erebus$/;
+  #die "Only *erebus* router is supported by this task.\n" unless $_host =~ /^erebus$/;
 
   $dbh = DBI->connect("DBI:mysql:database=".get(cmdb('dbname')).';host='.get(cmdb('dbhost')), get(cmdb('dbuser')), get(cmdb('dbpass'))) or 
     die "Connection to the database failed.\n";
@@ -55,6 +56,7 @@ routers.host_name AS host, \
 router_equipment.eq_name AS eq_name, \
 router_equipment.manufacturer AS manufacturer, \
 departments.dept_name AS dept_name, \
+routers.gateway AS gateway, \
 routers.log_ip AS log_ip, \
 routers.ntp_ip AS ntp_ip, \
 routers.ssh_icmp_from_wans_ips AS ssh_icmp_from_wans_ips_unparsed, \
@@ -69,7 +71,8 @@ lans.dhcp_dns_suffix AS dhcp_dns_suffix, \
 lans.dhcp_wins AS dhcp_wins \
 FROM routers \
 INNER JOIN lans ON lans.router_id = routers.id \
-LEFT OUTER JOIN router_equipment ON router_equipment.id = routers.equipment_id LEFT OUTER JOIN departments ON departments.id = routers.placement_dept_id \
+LEFT OUTER JOIN router_equipment ON router_equipment.id = routers.equipment_id \
+LEFT OUTER JOIN departments ON departments.id = routers.placement_dept_id \
 WHERE host_name = ?", {}, $_host);
   die "There's no such host in the database, or database error.\n" unless $hr;
   #say Dumper $hr;
@@ -80,7 +83,6 @@ WHERE host_name = ?", {}, $_host);
   my $ar = $dbh->selectall_arrayref("SELECT \
 ip AS wan_ip, \
 mask AS wan_netmask, \
-gw AS wan_gw, \
 vlan AS wan_vlan \
 FROM wans \
 WHERE router_id = ?", {Slice=>{}, MaxRows=>10}, $hostparam{router_id});
@@ -444,11 +446,9 @@ task "conf_net", sub {
 
 ##################################
 task "_t", sub {
-  read_db 'gwtest2';
+  read_db 'gwsouth2';
   check_par;
-
-  #check_par;
-  #say Dumper \%hostparam;
+  say Dumper \%hostparam;
 }, {dont_register => TRUE};
 
 1;

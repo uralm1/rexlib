@@ -12,12 +12,12 @@ my $def_net = "UWC66";
 # params
 my %hostparam = (
   host => '',
+  gateway => '',
   log_ip => '',
   ntp_ip => '',
   ssh_icmp_from_wans_ips => ['',],
   wan_ip => '',
   wan_netmask => '',
-  wan_gateway => '',
   auto_wan_routes => [{name=>'',target=>'',netmask=>'',gateway=>''},],
   lan_ip => '',
   lan_netmask => '',
@@ -97,12 +97,12 @@ routers.host_name AS host, \
 router_equipment.eq_name AS eq_name, \
 router_equipment.manufacturer AS manufacturer, \
 departments.dept_name AS dept_name, \
+routers.gateway AS gateway, \
 routers.log_ip AS log_ip, \
 routers.ntp_ip AS ntp_ip, \
 routers.ssh_icmp_from_wans_ips AS ssh_icmp_from_wans_ips_unparsed, \
 wans.ip AS wan_ip, \
 wans.mask AS wan_netmask, \
-wans.gw AS wan_gateway, \
 lans.ip AS lan_ip, \
 lans.mask AS lan_netmask, \
 lans.routes AS lan_routes_unparsed, \
@@ -205,7 +205,7 @@ INNER JOIN wans ON wans.router_id = routers.id");
         redo RCHECK2;
       }
     }
-    push @w_route_list, {name => $_r_name, target => $_r_target, netmask => $_r_netmask, gateway => $hostparam{wan_gateway}};
+    push @w_route_list, {name => $_r_name, target => $_r_target, netmask => $_r_netmask, gateway => $hostparam{gateway}};
   }
   $sth->finish;
   $hostparam{auto_wan_routes} = \@w_route_list;
@@ -458,7 +458,7 @@ task "conf_net", sub {
   uci "set network.wan.proto=\'static\'";
   uci "set network.wan.ipaddr=\'$hostparam{wan_ip}\'";
   uci "set network.wan.netmask=\'$hostparam{wan_netmask}\'";
-  uci "set network.wan.gateway=\'$hostparam{wan_gateway}\'";
+  uci "set network.wan.gateway=\'$hostparam{gateway}\'";
   uci "set network.wan.ipv6=0";
 
   quci "delete network.wan6";
@@ -891,19 +891,19 @@ task "reload_tinc", sub {
 
 ##################################
 task "_t", sub {
-  read_db 'gwtest2';
+  read_db 'gwsouth2';
   check_par;
 
-  my @outgoing_rules_ip_list;
-  recursive_search_by_from_hostname(\@outgoing_rules_ip_list, $hostparam{tun_node_name});
-  say 'Outgoing: ', Dumper \@outgoing_rules_ip_list;
+  #my @outgoing_rules_ip_list;
+  #recursive_search_by_from_hostname(\@outgoing_rules_ip_list, $hostparam{tun_node_name});
+  #say 'Outgoing: ', Dumper \@outgoing_rules_ip_list;
 
-  my @incoming_rules_ip_list;
-  recursive_search_by_to_hostname(\@incoming_rules_ip_list, $hostparam{tun_node_name});
-  say 'Incoming: ', Dumper \@incoming_rules_ip_list;
+  #my @incoming_rules_ip_list;
+  #recursive_search_by_to_hostname(\@incoming_rules_ip_list, $hostparam{tun_node_name});
+  #say 'Incoming: ', Dumper \@incoming_rules_ip_list;
 
   #check_par;
-  #say Dumper \%hostparam;
+  say Dumper \%hostparam;
 }, {dont_register => TRUE};
 
 1;
