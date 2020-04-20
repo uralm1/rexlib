@@ -50,6 +50,7 @@ task diagnose => sub {
 
   my $hr = $dbh->selectrow_hashref("SELECT \
 r.host_name AS host_name, \
+r.gateway AS gateway, \
 router_equipment.eq_name AS eq_name, \
 router_equipment.manufacturer AS eq_manufacturer, \
 departments.dept_name AS dept_name, \
@@ -58,7 +59,6 @@ departments.contacts AS dept_contacts, \
 departments.notes AS dept_notes, \
 wans.name AS wan_name, \
 wans.ip AS wan_ip, \
-wans.gw AS wan_gw, \
 providers.prov_name AS prov_name, \
 providers.support AS prov_support, \
 dogovors.prov_code AS prov_dog, \
@@ -134,7 +134,7 @@ WHERE r.host_name = ?", { Slice=>{} }, $host);
       # link error
       $rp->say("Попытка проверки шлюза провайдера объекта (для диагностики):");
       # correct user is already set for this task
-      $r = run_task 'UtilRex:ping', params => {host=>$hr->{wan_gw}}, on => 'erebus';
+      $r = run_task 'UtilRex:ping', params => {host=>$hr->{gateway}}, on => 'erebus';
       $rp->say(ppres($r), ' - шлюз провайдера для '.$hr->{wan_name}.' (некритично).');
       $rp->say("\n*** Диагноз ***");
       $rp->say("Связь до обслуживаемых $hr->{host_name} подразделений отсутствует.\nЭто может быть вызвано следующими причинами:");
