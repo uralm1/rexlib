@@ -11,6 +11,7 @@ use feature 'state';
 my %hostparam = (
   host => '',
   gateway => '',
+  dns => ['',],
   log_ip => '',
   ntp_ip => '',
   ssh_icmp_from_wans_ips => ['',],
@@ -19,7 +20,6 @@ my %hostparam = (
   lan_ip => '',
   lan_netmask => '',
   lan_routes => [{name=>'',target=>'',netmask=>'',gateway=>''},],
-  lan_dns => ['',],
   dhcp_on => 0,
   dhcp_start => 0,
   dhcp_limit => 0,
@@ -57,13 +57,13 @@ router_equipment.eq_name AS eq_name, \
 router_equipment.manufacturer AS manufacturer, \
 departments.dept_name AS dept_name, \
 routers.gateway AS gateway, \
+routers.dns_list AS dns_unparsed, \
 routers.log_ip AS log_ip, \
 routers.ntp_ip AS ntp_ip, \
 routers.ssh_icmp_from_wans_ips AS ssh_icmp_from_wans_ips_unparsed, \
 lans.ip AS lan_ip, \
 lans.mask AS lan_netmask, \
 lans.routes AS lan_routes_unparsed, \
-lans.dns_list AS lan_dns_unparsed, \
 lans.dhcp_on AS dhcp_on, \
 lans.dhcp_start_ip AS dhcp_start_ip_unparsed, \
 lans.dhcp_limit AS dhcp_limit, \
@@ -119,7 +119,7 @@ WHERE router_id = ?", {Slice=>{}, MaxRows=>10}, $hostparam{router_id});
   $hostparam{lan_routes} = \@rres;
 =cut
   # parse dns_list
-  $hostparam{lan_dns} = [split /,/, $hostparam{lan_dns_unparsed}];
+  $hostparam{dns} = [split /,/, $hostparam{dns_unparsed}];
   # parse dhcp_start
   if ($hostparam{dhcp_start_ip_unparsed} =~ /^(?:[0-9]{1,3}\.){3}([0-9]{1,3})$/) {
     $hostparam{dhcp_start} = $1;
@@ -381,7 +381,7 @@ task "conf_net", sub {
 
   # dns
   quci "delete network.lan.dns";
-  foreach (@{$hostparam{lan_dns}}) {
+  foreach (@{$hostparam{dns}}) {
     uci "add_list network.lan.dns=\'$_\'";
   }
   quci "delete network.lan.dns_search";
