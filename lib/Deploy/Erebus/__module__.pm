@@ -16,7 +16,6 @@ my %hostparam = (
   ntp_ip => '',
   ssh_icmp_from_wans_ips => ['',],
   wan_ifs => {ifname=>{ip=>'',netmask=>'',vlan=>'',alias=>0},},
-  auto_wan_routes => [{name=>'',target=>'',netmask=>'',gateway=>''},],
   lan_ip => '',
   lan_netmask => '',
   lan_routes => [{name=>'',target=>'',netmask=>'',gateway=>''},],
@@ -81,10 +80,13 @@ WHERE host_name = ?", {}, $_host);
 
   # read wans
   my $ar = $dbh->selectall_arrayref("SELECT \
-ip AS ip, \
-mask AS netmask, \
-vlan AS vlan \
+wans.ip AS ip, \
+wans.mask AS netmask, \
+wans.vlan AS vlan, \
+wans.net_id AS net_src_id, \
+nets.net_gw AS net_src_gw \
 FROM wans \
+LEFT JOIN nets ON net_id = nets.id \
 WHERE router_id = ?", {Slice=>{}, MaxRows=>10}, $hostparam{router_id});
   die "Fetching wans database failure.\n" unless $ar;
   #say Dumper $ar;
@@ -98,13 +100,38 @@ WHERE router_id = ?", {Slice=>{}, MaxRows=>10}, $hostparam{router_id});
     my $vid = $_;
     my $val = $vif{$_}; # aref
     my $aliasid = 0;
+    my $routeid = 0;
     # sort aliases by ip to keep things persistent
-    for (sort {$a->{wan_ip} cmp $b->{wan_ip}} @$val) {
+    for (sort {$a->{ip} cmp $b->{ip}} @$val) {
       my $if_name = "wan_vlan${vid}_$aliasid";
       $hostparam{wan_ifs}->{$if_name} = { %$_ };
       $hostparam{wan_ifs}->{$if_name}->{alias} = $aliasid++;
-    }
-  }
+
+      # extract routes for each interface
+      my $ar1 = $dbh->selectall_arrayref("SELECT \
+nets.net_ip AS target, \
+nets.mask AS netmask, \
+r_table AS 'table' \
+FROM routes \
+LEFT JOIN nets ON net_dst_id = nets.id \
+WHERE net_src_id = ?", {Slice=>{}, MaxRows=>500}, $_->{net_src_id});
+      die "Fetching routes database failure.\n" unless $ar1;
+      #say Dumper $ar1;
+
+      my $r_gateway = $_->{net_src_gw};
+      for (@$ar1) {
+	my $r1 = {
+	  name => "${if_name}_route$routeid",
+	  gateway => $r_gateway,
+	  target => $_->{target},
+	  netmask => $_->{netmask},
+	  table => $_->{table},
+        };
+        push @{$hostparam{wan_ifs}->{$if_name}->{routes}}, $r1;
+	$routeid++;
+      }
+    } # for aliases
+  } # for vlans
 
 =for comment
   # parse routes
@@ -127,77 +154,6 @@ WHERE router_id = ?", {Slice=>{}, MaxRows=>10}, $hostparam{router_id});
   # parse ssh_icmp_from_wans_ips
   $hostparam{ssh_icmp_from_wans_ips} = [split /,/, $hostparam{ssh_icmp_from_wans_ips_unparsed}];
 
-=for comment
-  # read vpn parameters
-  $hr = $dbh->selectrow_hashref("SELECT \
-routers.host_name AS tun_node_name, \
-node_ip AS tun_node_ip, \
-subnet AS tun_subnet, \
-tun_ip AS tun_int_ip, \
-tun_netmask AS tun_int_netmask, \
-pub_key AS tun_pub_key, \
-priv_key AS tun_priv_key \
-FROM vpns \
-INNER JOIN routers ON routers.id = router_id \
-WHERE routers.host_name = ?", {}, $_host);
-  die "There's no such vpn in the database, or database error.\n" unless $hr;
-  #say Dumper $hr;
-  %hostparam = (%hostparam, %$hr);
-
-  $hostparam{tun_array_ref} = read_tunnels_tinc();
-  #say Dumper $hostparam{tun_array_ref};
-
-  # build tinc connect_to list of nodes
-  my @tmp_list = grep { $_->{from_hostname} eq $hostparam{tun_node_name} } @{$hostparam{tun_array_ref}};
-  #say Dumper \@tmp_list;
-  say "WARNING!!! NO destination VPN tunnels are configured for this node. ConnectTo list will be empty." unless @tmp_list;
-
-  $hostparam{tun_connect_nodes} = remove_dups([map { $_->{to_hostname} } @tmp_list]);
-  foreach (@{$hostparam{tun_connect_nodes}}) {
-    die "Invalid tunnel configuration! Source node connected to itself!\n" if $_ eq $hostparam{tun_node_name};
-  }
-  ### TODO: check if we can run without vpn configuration records
-
-  # build route list
-  my $sth = $dbh->prepare("SELECT \
-host_name, \
-wans.ip, \
-wans.mask \
-FROM routers \
-INNER JOIN wans ON wans.router_id = routers.id");
-  $sth->execute;
-  my @w_route_list;
-  RLIST: while (my $data = $sth->fetchrow_arrayref) {
-    next RLIST if $data->[0] eq $_host; # skip self
-    #say Dumper $data;
-    my $dst_ip = NetAddr::IP->new($data->[1], $data->[2]);
-    die "Invalid wan ip address while building route list" unless $dst_ip;
-    my $_r_name = 'w_'.lc($data->[0]);
-    my $_r_target = $dst_ip->network->addr; #say "Network ip: ".$_r_target;
-    my $_r_netmask = $data->[2];
-    # remove route target+netmask duplications
-    RCHECK1: foreach (@w_route_list) {
-      if ($_r_target eq $_->{target} && $_r_netmask eq $_->{netmask}) {
-	say "NOTE: No route to $data->[0] will be build because the same route for $_->{name} has already been built.";
-	next RLIST;
-      }
-    }
-    # fix route name duplications
-    my $i = 1;
-    my $_prev_r_name = $_r_name;
-    RCHECK2: foreach (@w_route_list) {
-      if ($_r_name eq $_->{name}) {
-	$_r_name = $_prev_r_name.'_'.$i;
-	$i++;
-        redo RCHECK2;
-      }
-    }
-    push @w_route_list, {name => $_r_name, target => $_r_target, netmask => $_r_netmask, gateway => $hostparam{wan_gateway}};
-  }
-  $sth->finish;
-  $hostparam{auto_wan_routes} = \@w_route_list;
-  #say Dumper $hostparam{auto_wan_routes};
-=cut
   say Dumper \%hostparam;
 
   $dbh->disconnect;
@@ -378,6 +334,23 @@ task "conf_net", sub {
     on_change => sub {
       say "Routing tables r_uwc and r_beeline were added to rt_tables.";
     };
+
+  # routes
+  for (sort keys %$wifs_r) {
+    my $r_interface = $_;
+    my $r = $wifs_r->{$_}{routes};
+    if ($r) {
+      for (@$r) {
+	my $n = $_->{name};
+        uci "set network.$n=route";
+        uci "set network.$n.interface=$r_interface";
+        uci "set network.$n.target=$_->{target}";
+        uci "set network.$n.netmask=$_->{netmask}";
+        uci "set network.$n.gateway=$_->{gateway}";
+        uci "set network.$n.table=$_->{table}" if $_->{table};
+      }
+    }
+  }
 
   # dns
   quci "delete network.lan.dns";
