@@ -227,6 +227,16 @@ task "conf_system", sub {
   file "/lib/preinit/30_failsafe_wait", ensure=>'absent';
   file "/lib/preinit/99_10_failsafe_login", ensure=>'absent';
 
+  # install packages
+  say "Updating package database.";
+  update_package_db;
+  say "Installing / updating packages.";
+  for (qw/ip-full tc iperf3 irqbalance ethtool lm-sensors lm-sensors-detect/) {
+    pkg $_, ensure => latest, on_change => sub {
+      say "package $_ was installed.";
+    }
+  }
+
   my $tpl_sys_file = 'files/system.x86.tpl';
   file "/etc/config/system",
     owner => "ural",
@@ -425,9 +435,9 @@ task "conf_net", sub {
 
 ##################################
 task "_t", sub {
-  read_db 'erebus';
-  check_par;
-  say Dumper \%hostparam;
+  #read_db 'erebus';
+  #check_par;
+  #say Dumper \%hostparam;
 }, {dont_register => TRUE};
 
 1;
