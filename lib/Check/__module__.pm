@@ -68,8 +68,8 @@ dop_sogl.date AS prov_dog_dop_sogl_date, \
 lans.name AS lan_name, \
 lans.ip AS lan_ip \
 FROM routers r \
-INNER JOIN wans ON wans.router_id = r.id \
-INNER JOIN lans ON lans.router_id = r.id \
+INNER JOIN interfaces wans ON wans.router_id = r.id AND wans.type = 1 \
+INNER JOIN interfaces lans ON lans.router_id = r.id AND lans.type = 2 \
 LEFT OUTER JOIN router_equipment ON router_equipment.id = r.equipment_id \
 LEFT OUTER JOIN departments ON departments.id = r.placement_dept_id \
 LEFT OUTER JOIN dogovors ON dogovors.id = wans.dogovor_id \

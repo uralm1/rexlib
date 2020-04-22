@@ -69,7 +69,7 @@ lans.dhcp_limit AS dhcp_limit, \
 lans.dhcp_dns_suffix AS dhcp_dns_suffix, \
 lans.dhcp_wins AS dhcp_wins \
 FROM routers \
-INNER JOIN lans ON lans.router_id = routers.id \
+INNER JOIN interfaces lans ON lans.router_id = routers.id AND lans.type = 2 \
 LEFT OUTER JOIN router_equipment ON router_equipment.id = routers.equipment_id \
 LEFT OUTER JOIN departments ON departments.id = routers.placement_dept_id \
 WHERE host_name = ?", {}, $_host);
@@ -85,10 +85,10 @@ wans.mask AS netmask, \
 wans.vlan AS vlan, \
 wans.net_id AS net_src_id, \
 nets.net_gw AS net_src_gw \
-FROM wans \
+FROM interfaces wans \
 LEFT JOIN nets ON net_id = nets.id \
-WHERE router_id = ?", {Slice=>{}, MaxRows=>10}, $hostparam{router_id});
-  die "Fetching wans database failure.\n" unless $ar;
+WHERE type = 1 AND router_id = ?", {Slice=>{}, MaxRows=>10}, $hostparam{router_id});
+  die "Fetching interfaces database failure.\n" unless $ar;
   #say Dumper $ar;
 
   # reorganize wans array to hash for aliasing support
@@ -435,9 +435,9 @@ task "conf_net", sub {
 
 ##################################
 task "_t", sub {
-  #read_db 'erebus';
-  #check_par;
-  #say Dumper \%hostparam;
+  read_db 'erebus';
+  check_par;
+  say Dumper \%hostparam;
 }, {dont_register => TRUE};
 
 1;

@@ -113,8 +113,8 @@ lans.dhcp_limit AS dhcp_limit, \
 lans.dhcp_dns_suffix AS dhcp_dns_suffix, \
 lans.dhcp_wins AS dhcp_wins \
 FROM routers \
-INNER JOIN wans ON wans.router_id = routers.id \
-INNER JOIN lans ON lans.router_id = routers.id \
+INNER JOIN interfaces wans ON wans.router_id = routers.id AND wans.type = 1 \
+INNER JOIN interfaces lans ON lans.router_id = routers.id AND lans.type = 2 \
 LEFT OUTER JOIN router_equipment ON router_equipment.id = routers.equipment_id \
 LEFT OUTER JOIN departments ON departments.id = routers.placement_dept_id \
 WHERE host_name = ?", {}, $_host);
@@ -177,7 +177,7 @@ host_name, \
 wans.ip, \
 wans.mask \
 FROM routers \
-INNER JOIN wans ON wans.router_id = routers.id");
+INNER JOIN interfaces wans ON wans.router_id = routers.id AND wans.type = 1");
   $sth->execute;
   my @w_route_list;
   RLIST: while (my $data = $sth->fetchrow_arrayref) {
