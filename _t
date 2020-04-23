@@ -13,6 +13,6 @@
 #rex -H 10.0.1.1 UtilSSH:install_openssh_sshkey
 #rex -H 10.0.1.1 Deploy:Owrt:show_router
 #rex -H 10.0.1.1 Deploy:Erebus:conf_system --confhost=erebus
-rex -H 10.0.1.1 Deploy:Erebus:deploy_router
+rex -H 192.168.12.3 Deploy:Erebus:deploy_router
 
 echo "Exit code: $?."

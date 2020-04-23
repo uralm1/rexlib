@@ -15,10 +15,8 @@ my %hostparam = (
   log_ip => '',
   ntp_ip => '',
   ssh_icmp_from_wans_ips => ['',],
-  wan_ifs => {ifname=>{ip=>'',netmask=>'',vlan=>'',alias=>0},},
-  lan_ip => '',
-  lan_netmask => '',
-  lan_routes => [{name=>'',target=>'',netmask=>'',gateway=>''},],
+  wan_ifs => {ifname=>{ip=>'',netmask=>'',vlan=>'',alias=>0, routes=>[{},]},},
+  lan_ifs => {ifname=>{ip=>'',netmask=>'',vlan=>'',alias=>0, routes=>[{},]},},
   dhcp_on => 0,
   dhcp_start => 0,
   dhcp_limit => 0,
@@ -33,6 +31,7 @@ my %hostparam = (
   tun_pub_key => '',
   tun_priv_key => '',
   tun_array_ref => [],
+  hacks => {codename=>'content',},
 );
 
 ##################################
@@ -49,6 +48,7 @@ sub read_db {
     die "Connection to the database failed.\n";
   $dbh->do("SET NAMES 'UTF8'");
 
+  # FIXME lans join uses only ONE lan interface
   my $hr = $dbh->selectrow_hashref("SELECT \
 routers.id AS router_id, \
 routers.host_name AS host, \
@@ -60,9 +60,6 @@ routers.dns_list AS dns_unparsed, \
 routers.log_ip AS log_ip, \
 routers.ntp_ip AS ntp_ip, \
 routers.ssh_icmp_from_wans_ips AS ssh_icmp_from_wans_ips_unparsed, \
-lans.ip AS lan_ip, \
-lans.mask AS lan_netmask, \
-lans.routes AS lan_routes_unparsed, \
 lans.dhcp_on AS dhcp_on, \
 lans.dhcp_start_ip AS dhcp_start_ip_unparsed, \
 lans.dhcp_limit AS dhcp_limit, \
@@ -78,60 +75,11 @@ WHERE host_name = ?", {}, $_host);
 
   %hostparam = %$hr;
 
-  # read wans
-  my $ar = $dbh->selectall_arrayref("SELECT \
-wans.ip AS ip, \
-wans.mask AS netmask, \
-wans.vlan AS vlan, \
-wans.net_id AS net_src_id, \
-nets.net_gw AS net_src_gw \
-FROM interfaces wans \
-LEFT JOIN nets ON net_id = nets.id \
-WHERE type = 1 AND router_id = ?", {Slice=>{}, MaxRows=>10}, $hostparam{router_id});
-  die "Fetching interfaces database failure.\n" unless $ar;
-  #say Dumper $ar;
-
-  # reorganize wans array to hash for aliasing support
-  my %vif;
-  push(@{$vif{$_->{vlan}}}, $_) for (@$ar);
-  #say Dumper \%vif;
-
-  for (sort keys %vif) {
-    my $vid = $_;
-    my $val = $vif{$_}; # aref
-    my $aliasid = 0;
-    my $routeid = 0;
-    # sort aliases by ip to keep things persistent
-    for (sort {$a->{ip} cmp $b->{ip}} @$val) {
-      my $if_name = "wan_vlan${vid}_$aliasid";
-      $hostparam{wan_ifs}->{$if_name} = { %$_ };
-      $hostparam{wan_ifs}->{$if_name}->{alias} = $aliasid++;
-
-      # extract routes for each interface
-      my $ar1 = $dbh->selectall_arrayref("SELECT \
-nets.net_ip AS target, \
-nets.mask AS netmask, \
-r_table AS 'table' \
-FROM routes \
-LEFT JOIN nets ON net_dst_id = nets.id \
-WHERE net_src_id = ?", {Slice=>{}, MaxRows=>500}, $_->{net_src_id});
-      die "Fetching routes database failure.\n" unless $ar1;
-      #say Dumper $ar1;
-
-      my $r_gateway = $_->{net_src_gw};
-      for (@$ar1) {
-	my $r1 = {
-	  name => "${if_name}_route$routeid",
-	  gateway => $r_gateway,
-	  target => $_->{target},
-	  netmask => $_->{netmask},
-	  table => $_->{table},
-        };
-        push @{$hostparam{wan_ifs}->{$if_name}->{routes}}, $r1;
-	$routeid++;
-      }
-    } # for aliases
-  } # for vlans
+  # read wans and lans
+  $hostparam{wan_ifs} = {};
+  populate_interfaces($hostparam{wan_ifs}, 1, $hostparam{router_id});
+  $hostparam{lan_ifs} = {};
+  populate_interfaces($hostparam{lan_ifs}, 2, $hostparam{router_id});
 
 =for comment
   # parse routes
@@ -154,6 +102,19 @@ WHERE net_src_id = ?", {Slice=>{}, MaxRows=>500}, $_->{net_src_id});
   # parse ssh_icmp_from_wans_ips
   $hostparam{ssh_icmp_from_wans_ips} = [split /,/, $hostparam{ssh_icmp_from_wans_ips_unparsed}];
 
+  # read hacks
+  my $ar = $dbh->selectall_arrayref("SELECT \
+codename, \
+hack \
+FROM hacks \
+WHERE router_id = ?", {Slice=>{}, MaxRows=>100}, $hostparam{router_id});
+  die "Getting hacks failure.\n" unless $ar;
+  for (@$ar) {
+    $_->{hack} =~ s/\r\n/\n/g; # dos2unix
+    $hostparam{hacks}->{$_->{codename}} = "\n### BEGIN OF $_->{codename} HACK ###\n".$_->{hack}."\n### END OF $_->{codename} HACK ###\n";
+  }
+
+
   say Dumper \%hostparam;
 
   $dbh->disconnect;
@@ -161,6 +122,70 @@ WHERE net_src_id = ?", {Slice=>{}, MaxRows=>500}, $_->{net_src_id});
   1;
 }
 
+
+# $hostparam{wan_ifs} = {};
+# populate_interfaces($hostparam{wan_ifs} /to fill in/, $if_type /1 or 2/, $router_id);
+sub populate_interfaces {
+  my ($ifs_href, $if_type, $router_id) = @_;
+  die "Unsupported interface type $if_type\n" unless $if_type == 1 || $if_type == 2;
+
+  my $ar = $dbh->selectall_arrayref("SELECT \
+i.ip AS ip, \
+i.mask AS netmask, \
+i.vlan AS vlan, \
+i.net_id AS net_src_id, \
+nets.net_gw AS net_src_gw \
+FROM interfaces i \
+INNER JOIN nets ON net_id = nets.id \
+WHERE type = ? AND router_id = ?", {Slice=>{}, MaxRows=>10}, $if_type, $router_id);
+  die "Fetching interfaces database failure.\n" unless $ar;
+  #say Dumper $ar;
+
+  # reorganize wans array to hash for aliasing support
+  my %vif;
+  push(@{$vif{ ($_->{vlan}) ? $_->{vlan} : '0' }}, $_) for (@$ar); # group by vlan
+  #say Dumper \%vif;
+
+  my $part_if = ($if_type == 1) ? 'wan' : 'lan';
+  for (sort keys %vif) {
+    my $vid = $_;
+    my $val = $vif{$_}; # aref
+    my $aliasid = 0;
+    my $routeid = 1;
+    my $part_vlan = ($vid) ? "_vlan$vid" : '';
+    # sort aliases by ip to keep things persistent
+    for (sort {$a->{ip} cmp $b->{ip}} @$val) {
+      my $part_alias = ($aliasid) ? "_alias$aliasid" : '';
+      my $if_name = $part_if.$part_vlan.$part_alias;
+      $ifs_href->{$if_name} = { %$_ };
+      $ifs_href->{$if_name}->{alias} = $aliasid++;
+
+      # extract routes for each interface
+      my $ar1 = $dbh->selectall_arrayref("SELECT \
+nets.net_ip AS target, \
+nets.mask AS netmask, \
+r_table AS 'table' \
+FROM routes \
+INNER JOIN nets ON net_dst_id = nets.id \
+WHERE net_src_id = ?", {Slice=>{}, MaxRows=>500}, $_->{net_src_id});
+      die "Fetching routes database failure.\n" unless $ar1;
+      #say Dumper $ar1;
+
+      my $r_gateway = $_->{net_src_gw};
+      for (@$ar1) {
+	my $r1 = {
+	  name => "${if_name}_route$routeid",
+	  gateway => $r_gateway,
+	  target => $_->{target},
+	  netmask => $_->{netmask},
+	  table => $_->{table},
+        };
+        push @{$ifs_href->{$if_name}->{routes}}, $r1;
+	$routeid++;
+      }
+    } # for aliases
+  } # for vlans
+}
 
 sub check_par {
   die "Hostname parameter is empty. Configuration wasn't read.\n" unless $hostparam{host}; 
@@ -292,77 +317,93 @@ task "conf_net", sub {
 
   say "Network configuration started for $hostparam{host}";
 
-  my $tpl_net_file = 'files/network.x86.tpl';
-  my $lan_ifname = 'eth0';
-  my $wan_ifname = 'eth1';
-
-  file "/etc/config/network",
+  my $network_file = '/etc/config/network';
+  file $network_file,
     owner => "ural",
     group => "root",
     mode => 644,
-    content => template($tpl_net_file);
+    content => template('files/network.x86.tpl');
   uci "revert network";
 
   # create new ula on first re-boot
   file "/etc/uci-defaults/12_network-generate-ula",
     source => "files/12_network-generate-ula";
 
-  uci "set network.lan.ifname=\'$lan_ifname\'";
-  uci "set network.lan.proto=\'static\'";
-  #uci "set network.lan.ipaddr=\'$hostparam{lan_ip}\'";
-  #uci "set network.lan.netmask=\'$hostparam{lan_netmask}\'";
-  uci "set network.lan.ipaddr=\'10.0.1.1\'"; #FIXME
-  uci "set network.lan.netmask=\'255.192.0.0\'"; #FIXME
-  uci "set network.lan.ipv6=0";
-  uci "delete network.lan.type";
-
-  my $gw = ($hostparam{gateway}) ? NetAddr::IP->new($hostparam{gateway}) : undef;
-  my $wifs_r = $hostparam{wan_ifs};
-  for (sort keys %$wifs_r) {
-    my $wif_r = $wifs_r->{$_};
-    uci "set network.$_=interface";
-    uci "set network.$_.ifname=\'$wan_ifname.$wif_r->{vlan}\'";
-    uci "set network.$_.proto=\'static\'";
-    uci "set network.$_.ipaddr=\'$wif_r->{ip}\'";
-    uci "set network.$_.netmask=\'$wif_r->{netmask}\'";
-    my $net = NetAddr::IP->new($wif_r->{ip}, $wif_r->{netmask});
-    uci "set network.$_.gateway=\'$hostparam{gateway}\'" if ($gw && $net && $gw->within($net));
-    uci "set network.$_.ipv6=0";
-  }
-
+  quci "delete network.lan";
   quci "delete network.wan";
   quci "delete network.wan6";
 
+  my $lan_ifname = 'eth0';
+  my $wan_ifname = 'eth1';
+
+  # lan
+  my $gw = ($hostparam{gateway}) ? NetAddr::IP->new($hostparam{gateway}) : undef;
+  my $ifs_r = $hostparam{lan_ifs};
+  for (sort keys %$ifs_r) {
+    my $if_r = $ifs_r->{$_};
+    my $part_vlan = ($if_r->{vlan}) ? ".$if_r->{vlan}" : '';
+    uci "set network.$_=interface";
+    uci "set network.$_.ifname=\'$lan_ifname$part_vlan\'";
+    uci "set network.$_.proto=\'static\'";
+    uci "set network.$_.ipaddr=\'$if_r->{ip}\'";
+    uci "set network.$_.netmask=\'$if_r->{netmask}\'";
+    my $net = NetAddr::IP->new($if_r->{ip}, $if_r->{netmask});
+    uci "set network.$_.gateway=\'$hostparam{gateway}\'" if ($gw && $net && $gw->within($net));
+    uci "set network.$_.ipv6=0";
+  }
+  # wan
+  $ifs_r = $hostparam{wan_ifs};
+  for (sort keys %$ifs_r) {
+    my $if_r = $ifs_r->{$_};
+    my $part_vlan = ($if_r->{vlan}) ? ".$if_r->{vlan}" : '';
+    uci "set network.$_=interface";
+    uci "set network.$_.ifname=\'$wan_ifname$part_vlan\'";
+    uci "set network.$_.proto=\'static\'";
+    uci "set network.$_.ipaddr=\'$if_r->{ip}\'";
+    uci "set network.$_.netmask=\'$if_r->{netmask}\'";
+    my $net = NetAddr::IP->new($if_r->{ip}, $if_r->{netmask});
+    uci "set network.$_.gateway=\'$hostparam{gateway}\'" if ($gw && $net && $gw->within($net));
+    uci "set network.$_.ipv6=0";
+  }
+  #uci "set network.lan.ipaddr=\'10.0.1.1\'"; #FIXME
+  #uci "set network.lan.netmask=\'255.192.0.0\'"; #FIXME
+
   # rt_tables
   my $rt_file = '/etc/iproute2/rt_tables';
-  append_or_amend_line $rt_file,
-    line => '90	r_uwc',
-    regexp => qr/^90\s+r_uwc$/;
-  append_or_amend_line $rt_file,
-    line => '100	r_beeline',
-    regexp => qr/^100\s+r_beeline$/,
+  file $rt_file,
+    owner => "ural",
+    group => "root",
+    mode => 644,
+    source => "files/rt_tables";
+
+  my $h = $hostparam{hacks}->{rt_tables_config};
+  append_if_no_such_line($rt_file,
+    line => $h,
     on_change => sub {
-      say "Routing tables r_uwc and r_beeline were added to rt_tables.";
-    };
+      say "Hack rt_tables_config was added to rt_tables.";
+    }
+  ) if $h;
 
   # routes
-  for (sort keys %$wifs_r) {
-    my $r_interface = $_;
-    my $r = $wifs_r->{$_}{routes};
-    if ($r) {
-      for (@$r) {
-	my $n = $_->{name};
-        uci "set network.$n=route";
-        uci "set network.$n.interface=$r_interface";
-        uci "set network.$n.target=$_->{target}";
-        uci "set network.$n.netmask=$_->{netmask}";
-        uci "set network.$n.gateway=$_->{gateway}";
-        uci "set network.$n.table=$_->{table}" if $_->{table};
+  for my $ifs_r ($hostparam{lan_ifs}, $hostparam{wan_ifs}) {
+    for (sort keys %$ifs_r) {
+      my $r_interface = $_;
+      my $r = $ifs_r->{$_}{routes};
+      if ($r) {
+	for (@$r) {
+	  my $n = $_->{name};
+	  uci "set network.$n=route";
+	  uci "set network.$n.interface=$r_interface";
+	  uci "set network.$n.target=$_->{target}";
+	  uci "set network.$n.netmask=$_->{netmask}";
+	  uci "set network.$n.gateway=$_->{gateway}";
+	  uci "set network.$n.table=$_->{table}" if $_->{table};
+	}
       }
     }
   }
 
-  # dns
+  # dns FIXME
   quci "delete network.lan.dns";
   foreach (@{$hostparam{dns}}) {
     uci "add_list network.lan.dns=\'$_\'";
@@ -386,8 +427,8 @@ task "conf_net", sub {
   quci "delete dhcp.\@dnsmasq[0].local";
   uci "set dhcp.\@dnsmasq[0].logqueries=0";
 
-  quci "delete dhcp.\@dnsmasq[0].interface";
-  uci "add_list dhcp.\@dnsmasq[0].interface=\'lan\'"; # dnsmasq listen only lan
+  #quci "delete dhcp.\@dnsmasq[0].interface";
+  #uci "add_list dhcp.\@dnsmasq[0].interface=\'lan\'"; # dnsmasq listen only lan
 
   # wan is not used
   quci "delete dhcp.wan";
@@ -428,6 +469,15 @@ task "conf_net", sub {
   #uci "show dhcp";
   uci "commit network";
   uci "commit dhcp";
+
+  # append ip_rules_config hack to network
+  $h = $hostparam{hacks}->{ip_rules_config};
+  append_if_no_such_line($network_file,
+    line => $h,
+    on_change => sub {
+      say "Hack ip_rules_config was added to /etc/config/network.";
+    }
+  ) if $h;
 
   say "\nNetwork configuration finished for $hostparam{host}. Restarting the router will change the IP-s!!!.\n";
 };
