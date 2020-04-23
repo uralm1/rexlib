@@ -131,7 +131,7 @@ sub populate_interfaces {
 
   my $ar = $dbh->selectall_arrayref("SELECT \
 i.ip AS ip, \
-i.mask AS netmask, \
+nets.mask AS netmask, \
 i.vlan AS vlan, \
 i.net_id AS net_src_id, \
 nets.net_gw AS net_src_gw \

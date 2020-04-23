@@ -103,9 +103,9 @@ routers.log_ip AS log_ip, \
 routers.ntp_ip AS ntp_ip, \
 routers.ssh_icmp_from_wans_ips AS ssh_icmp_from_wans_ips_unparsed, \
 wans.ip AS wan_ip, \
-wans.mask AS wan_netmask, \
+wn.mask AS wan_netmask, \
 lans.ip AS lan_ip, \
-lans.mask AS lan_netmask, \
+ln.mask AS lan_netmask, \
 lans.routes AS lan_routes_unparsed, \
 lans.dhcp_on AS dhcp_on, \
 lans.dhcp_start_ip AS dhcp_start_ip_unparsed, \
@@ -114,7 +114,9 @@ lans.dhcp_dns_suffix AS dhcp_dns_suffix, \
 lans.dhcp_wins AS dhcp_wins \
 FROM routers \
 INNER JOIN interfaces wans ON wans.router_id = routers.id AND wans.type = 1 \
+INNER JOIN nets wn ON wn.id = wans.net_id \
 INNER JOIN interfaces lans ON lans.router_id = routers.id AND lans.type = 2 \
+INNER JOIN nets ln ON ln.id = lans.net_id \
 LEFT OUTER JOIN router_equipment ON router_equipment.id = routers.equipment_id \
 LEFT OUTER JOIN departments ON departments.id = routers.placement_dept_id \
 WHERE host_name = ?", {}, $_host);
@@ -175,9 +177,10 @@ WHERE routers.host_name = ?", {}, $_host);
   my $sth = $dbh->prepare("SELECT \
 host_name, \
 wans.ip, \
-wans.mask \
+wn.mask \
 FROM routers \
-INNER JOIN interfaces wans ON wans.router_id = routers.id AND wans.type = 1");
+INNER JOIN interfaces wans ON wans.router_id = routers.id AND wans.type = 1 \
+INNER JOIN nets wn ON wn.id = wans.net_id");
   $sth->execute;
   my @w_route_list;
   RLIST: while (my $data = $sth->fetchrow_arrayref) {
