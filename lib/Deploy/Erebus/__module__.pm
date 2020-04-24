@@ -17,7 +17,7 @@ my %hostparam = (
   ntp_ip => '',
   ssh_icmp_from_wans_ips => ['',],
   wan_ifs => {ifname=>{ip=>'',netmask=>'',vlan=>'',alias=>0, 
-    routes=>[{name=>'',gateway=>'',target=>'',netmask=>'',table=>''},],
+    routes=>[{name=>'',type=>1,gateway=>'',target=>'',netmask=>'',table=>''},],
     dhcp_on=>0,dhcp_start=>0,dhcp_limit=>0,dhcp_leasetime=>'',dhcp_dns=>'',dhcp_dns_suffix=>'',dhcp_wins=>'',
   },},
   lan_ifs => {},
@@ -157,6 +157,7 @@ WHERE type = ? AND router_id = ?", {Slice=>{}, MaxRows=>10}, $if_type, $router_i
 
       # extract routes for each interface
       my $ar1 = $dbh->selectall_arrayref("SELECT \
+type AS type, \
 nets.net_ip AS target, \
 nets.mask AS netmask, \
 r_table AS 'table' \
@@ -174,6 +175,7 @@ WHERE net_src_id = ?", {Slice=>{}, MaxRows=>500}, $_->{net_src_id});
 	  target => $_->{target},
 	  netmask => $_->{netmask},
 	  table => $_->{table},
+	  type => $_->{type},
         };
         push @{$ifs_href->{$if_name}{routes}}, $r1;
 	$routeid++;
@@ -391,13 +393,18 @@ task "conf_net", sub {
       my $r = $ifs_r->{$_}{routes};
       if ($r) {
 	for (@$r) {
+	  my $t = $_->{type};
 	  my $n = $_->{name};
-	  uci "set network.$n=route";
-	  uci "set network.$n.interface=$r_interface";
-	  uci "set network.$n.target=$_->{target}";
-	  uci "set network.$n.netmask=$_->{netmask}";
-	  uci "set network.$n.gateway=$_->{gateway}";
-	  uci "set network.$n.table=$_->{table}" if $_->{table};
+	  if ($t == 1 || $t == 9) { # 1 UNICAST / 9 surrogate IPSEC
+	    uci "set network.$n=route";
+	    uci "set network.$n.interface=$r_interface";
+	    uci "set network.$n.target=$_->{target}";
+	    uci "set network.$n.netmask=$_->{netmask}";
+	    uci "set network.$n.gateway=$_->{gateway}";
+	    uci "set network.$n.table=$_->{table}" if $_->{table};
+	  } else {
+	    die "Unsupported route type: $t";
+	  }
 	}
       }
     }
