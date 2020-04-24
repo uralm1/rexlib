@@ -14,6 +14,7 @@ my %hostparam = (
   host => '',
   gateway => '',
   dns => ['',],
+  dns_suffix => '',
   log_ip => '',
   ntp_ip => '',
   ssh_icmp_from_wans_ips => ['',],
@@ -26,6 +27,8 @@ my %hostparam = (
   dhcp_on => 0,
   dhcp_start => 0,
   dhcp_limit => 0,
+  dhcp_leasetime => '',
+  dhcp_dns => '',
   dhcp_dns_suffix => '',
   dhcp_wins => '',
   tun_node_name => '',
@@ -99,6 +102,7 @@ router_equipment.manufacturer AS manufacturer, \
 departments.dept_name AS dept_name, \
 routers.gateway AS gateway, \
 routers.dns_list AS dns_unparsed, \
+routers.dns_suffix AS dns_suffix, \
 routers.log_ip AS log_ip, \
 routers.ntp_ip AS ntp_ip, \
 routers.ssh_icmp_from_wans_ips AS ssh_icmp_from_wans_ips_unparsed, \
@@ -108,10 +112,12 @@ lans.ip AS lan_ip, \
 ln.mask AS lan_netmask, \
 lans.routes AS lan_routes_unparsed, \
 lans.dhcp_on AS dhcp_on, \
-lans.dhcp_start_ip AS dhcp_start_ip_unparsed, \
-lans.dhcp_limit AS dhcp_limit, \
-lans.dhcp_dns_suffix AS dhcp_dns_suffix, \
-lans.dhcp_wins AS dhcp_wins \
+ln.dhcp_start_ip AS dhcp_start, \
+ln.dhcp_limit AS dhcp_limit, \
+ln.dhcp_leasetime AS dhcp_leasetime, \
+ln.dhcp_dns AS dhcp_dns, \
+ln.dhcp_dns_suffix AS dhcp_dns_suffix, \
+ln.dhcp_wins AS dhcp_wins \
 FROM routers \
 INNER JOIN interfaces wans ON wans.router_id = routers.id AND wans.type = 1 \
 INNER JOIN nets wn ON wn.id = wans.net_id \
@@ -137,7 +143,7 @@ WHERE host_name = ?", {}, $_host);
   # parse dns_list
   $hostparam{dns} = [split /,/, $hostparam{dns_unparsed}];
   # parse dhcp_start
-  if ($hostparam{dhcp_start_ip_unparsed} =~ /^(?:[0-9]{1,3}\.){3}([0-9]{1,3})$/) {
+  if ($hostparam{dhcp_start} =~ /^(?:[0-9]{1,3}\.){3}([0-9]{1,3})$/) {
     $hostparam{dhcp_start} = $1;
   }
   # parse ssh_icmp_from_wans_ips
@@ -507,13 +513,13 @@ task "conf_net", sub {
   uci "set dhcp.\@dnsmasq[0].domainneeded=0";
   uci "set dhcp.\@dnsmasq[0].boguspriv=0";
   uci "set dhcp.\@dnsmasq[0].rebind_protection=0";
-  uci "set dhcp.\@dnsmasq[0].domain=\'$hostparam{dhcp_dns_suffix}\'";
+  uci "set dhcp.\@dnsmasq[0].domain=\'$hostparam{dns_suffix}\'";
   quci "delete dhcp.\@dnsmasq[0].local";
   uci "set dhcp.\@dnsmasq[0].logqueries=0";
 
   uci "set dhcp.lan.start=\'$hostparam{dhcp_start}\'";
   uci "set dhcp.lan.limit=\'$hostparam{dhcp_limit}\'";
-  uci "set dhcp.lan.leasetime=\'24h\'";
+  uci "set dhcp.lan.leasetime=\'$hostparam{dhcp_limit}\'";
   # disable dhcp at all
   uci "set dhcp.lan.ignore=".(($hostparam{dhcp_on} > 0)?0:1);
   # only allow static leases
@@ -524,7 +530,7 @@ task "conf_net", sub {
 
   quci "delete dhcp.lan.dhcp_option";
   #uci "add_list dhcp.lan.dhcp_option=\'3,192.168.33.81\'"; #router
-  #uci "add_list dhcp.lan.dhcp_option=\'6,10.14.0.2,10.14.0.1\'"; #dns
+  uci "add_list dhcp.lan.dhcp_option=\'6,$hostparam{dhcp_dns}\'" if $hostparam{dhcp_dns}; #dns
   uci "add_list dhcp.lan.dhcp_option=\'15,$hostparam{dhcp_dns_suffix}\'";
   uci "add_list dhcp.lan.dhcp_option=\'44,$hostparam{dhcp_wins}\'"; #wins
   uci "add_list dhcp.lan.dhcp_option=\'46,8\'";

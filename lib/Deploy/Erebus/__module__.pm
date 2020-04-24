@@ -12,16 +12,15 @@ my %hostparam = (
   host => '',
   gateway => '',
   dns => ['',],
+  dns_suffix => '',
   log_ip => '',
   ntp_ip => '',
   ssh_icmp_from_wans_ips => ['',],
-  wan_ifs => {ifname=>{ip=>'',netmask=>'',vlan=>'',alias=>0, routes=>[{},]},},
-  lan_ifs => {ifname=>{ip=>'',netmask=>'',vlan=>'',alias=>0, routes=>[{},]},},
-  dhcp_on => 0,
-  dhcp_start => 0,
-  dhcp_limit => 0,
-  dhcp_dns_suffix => '',
-  dhcp_wins => '',
+  wan_ifs => {ifname=>{ip=>'',netmask=>'',vlan=>'',alias=>0, 
+    routes=>[{name=>'',gateway=>'',target=>'',netmask=>'',table=>''},],
+    dhcp_on=>0,dhcp_start=>0,dhcp_limit=>0,dhcp_leasetime=>'',dhcp_dns=>'',dhcp_dns_suffix=>'',dhcp_wins=>'',
+  },},
+  lan_ifs => {},
   tun_node_name => '',
   tun_node_ip => '',
   tun_subnet => '',
@@ -48,7 +47,6 @@ sub read_db {
     die "Connection to the database failed.\n";
   $dbh->do("SET NAMES 'UTF8'");
 
-  # FIXME lans join uses only ONE lan interface
   my $hr = $dbh->selectrow_hashref("SELECT \
 routers.id AS router_id, \
 routers.host_name AS host, \
@@ -57,16 +55,11 @@ router_equipment.manufacturer AS manufacturer, \
 departments.dept_name AS dept_name, \
 routers.gateway AS gateway, \
 routers.dns_list AS dns_unparsed, \
+routers.dns_suffix AS dns_suffix, \
 routers.log_ip AS log_ip, \
 routers.ntp_ip AS ntp_ip, \
-routers.ssh_icmp_from_wans_ips AS ssh_icmp_from_wans_ips_unparsed, \
-lans.dhcp_on AS dhcp_on, \
-lans.dhcp_start_ip AS dhcp_start_ip_unparsed, \
-lans.dhcp_limit AS dhcp_limit, \
-lans.dhcp_dns_suffix AS dhcp_dns_suffix, \
-lans.dhcp_wins AS dhcp_wins \
+routers.ssh_icmp_from_wans_ips AS ssh_icmp_from_wans_ips_unparsed \
 FROM routers \
-INNER JOIN interfaces lans ON lans.router_id = routers.id AND lans.type = 2 \
 LEFT OUTER JOIN router_equipment ON router_equipment.id = routers.equipment_id \
 LEFT OUTER JOIN departments ON departments.id = routers.placement_dept_id \
 WHERE host_name = ?", {}, $_host);
@@ -95,17 +88,12 @@ WHERE host_name = ?", {}, $_host);
 =cut
   # parse dns_list
   $hostparam{dns} = [split /,/, $hostparam{dns_unparsed}];
-  # parse dhcp_start
-  if ($hostparam{dhcp_start_ip_unparsed} =~ /^(?:[0-9]{1,3}\.){3}([0-9]{1,3})$/) {
-    $hostparam{dhcp_start} = $1;
-  }
   # parse ssh_icmp_from_wans_ips
   $hostparam{ssh_icmp_from_wans_ips} = [split /,/, $hostparam{ssh_icmp_from_wans_ips_unparsed}];
 
   # read hacks
   my $ar = $dbh->selectall_arrayref("SELECT \
-codename, \
-hack \
+codename, hack \
 FROM hacks \
 WHERE router_id = ?", {Slice=>{}, MaxRows=>100}, $hostparam{router_id});
   die "Getting hacks failure.\n" unless $ar;
@@ -134,7 +122,14 @@ i.ip AS ip, \
 nets.mask AS netmask, \
 i.vlan AS vlan, \
 i.net_id AS net_src_id, \
-nets.net_gw AS net_src_gw \
+nets.net_gw AS net_src_gw, \
+i.dhcp_on AS dhcp_on, \
+nets.dhcp_start_ip AS dhcp_start, \
+nets.dhcp_limit AS dhcp_limit, \
+nets.dhcp_leasetime AS dhcp_leasetime, \
+nets.dhcp_dns AS dhcp_dns, \
+nets.dhcp_dns_suffix AS dhcp_dns_suffix, \
+nets.dhcp_wins AS dhcp_wins \
 FROM interfaces i \
 INNER JOIN nets ON net_id = nets.id \
 WHERE type = ? AND router_id = ?", {Slice=>{}, MaxRows=>10}, $if_type, $router_id);
@@ -158,7 +153,7 @@ WHERE type = ? AND router_id = ?", {Slice=>{}, MaxRows=>10}, $if_type, $router_i
       my $part_alias = ($aliasid) ? "_alias$aliasid" : '';
       my $if_name = $part_if.$part_vlan.$part_alias;
       $ifs_href->{$if_name} = { %$_ };
-      $ifs_href->{$if_name}->{alias} = $aliasid++;
+      $ifs_href->{$if_name}{alias} = $aliasid++;
 
       # extract routes for each interface
       my $ar1 = $dbh->selectall_arrayref("SELECT \
@@ -180,12 +175,17 @@ WHERE net_src_id = ?", {Slice=>{}, MaxRows=>500}, $_->{net_src_id});
 	  netmask => $_->{netmask},
 	  table => $_->{table},
         };
-        push @{$ifs_href->{$if_name}->{routes}}, $r1;
+        push @{$ifs_href->{$if_name}{routes}}, $r1;
 	$routeid++;
+      }
+      # parse dhcp_start
+      if ($ifs_href->{$if_name}{dhcp_start} =~ /^(?:[0-9]{1,3}\.){3}([0-9]{1,3})$/) {
+	$ifs_href->{$if_name}{dhcp_start} = $1;
       }
     } # for aliases
   } # for vlans
 }
+
 
 sub check_par {
   die "Hostname parameter is empty. Configuration wasn't read.\n" unless $hostparam{host}; 
@@ -403,13 +403,6 @@ task "conf_net", sub {
     }
   }
 
-  # dns FIXME
-  quci "delete network.lan.dns";
-  foreach (@{$hostparam{dns}}) {
-    uci "add_list network.lan.dns=\'$_\'";
-  }
-  quci "delete network.lan.dns_search";
-  #uci "add_list network.lan.dns_search=\'$hostparam{dhcp_dns_suffix}\'";
   say "/etc/config/network created and configured.";
 
   # dhcp
@@ -423,50 +416,62 @@ task "conf_net", sub {
   uci "set dhcp.\@dnsmasq[0].domainneeded=0";
   uci "set dhcp.\@dnsmasq[0].boguspriv=0";
   uci "set dhcp.\@dnsmasq[0].rebind_protection=0";
-  uci "set dhcp.\@dnsmasq[0].domain=\'$hostparam{dhcp_dns_suffix}\'";
+  # dns
+  uci "set dhcp.\@dnsmasq[0].domain=\'$hostparam{dns_suffix}\'";
   quci "delete dhcp.\@dnsmasq[0].local";
+  quci "delete dhcp.\@dnsmasq[0].server";
+  foreach (@{$hostparam{dns}}) {
+    uci "add_list dhcp.\@dnsmasq[0].server=\'$_\'";
+  }
+
   uci "set dhcp.\@dnsmasq[0].logqueries=0";
 
   #quci "delete dhcp.\@dnsmasq[0].interface";
   #uci "add_list dhcp.\@dnsmasq[0].interface=\'lan\'"; # dnsmasq listen only lan
 
-  # wan is not used
+  # lan, wan is not used
+  quci "delete dhcp.lan";
   quci "delete dhcp.wan";
-  # disable dhcp on external interfaces
-  for (sort keys %{$hostparam{wan_ifs}}) {
-    uci "set dhcp.$_=dhcp";
-    uci "set dhcp.$_.interface=\'$_\'";
-    uci "set dhcp.$_.ignore=1";
+
+  # dhcp configuration for interfaces
+  for my $ifs_r ($hostparam{lan_ifs}, $hostparam{wan_ifs}) {
+    for (sort keys %$ifs_r) {
+      uci "set dhcp.$_=dhcp"; # $_ interface
+      uci "set dhcp.$_.interface=\'$_\'";
+      if ($ifs_r->{$_}{dhcp_on} > 0) {
+	uci "set dhcp.$_.ignore=0";
+	uci "set dhcp.$_.start=\'$ifs_r->{$_}{dhcp_start}\'";
+	uci "set dhcp.$_.limit=\'$ifs_r->{$_}{dhcp_limit}\'";
+	uci "set dhcp.$_.leasetime=\'$ifs_r->{$_}{dhcp_leasetime}\'";
+	# only allow static leases
+	#uci "set dhcp.$_.dynamicdhcp=0";
+	# dhcpv6
+	uci "set dhcp.$_.dhcpv6=\'disabled\'";
+	uci "set dhcp.$_.ra=\'disabled\'";
+
+	quci "delete dhcp.$_.dhcp_option";
+	#uci "add_list dhcp.$_.dhcp_option=\'3,192.168.33.81\'"; #router
+	uci "add_list dhcp.$_.dhcp_option=\'6,$ifs_r->{$_}{dhcp_dns}\'" if $ifs_r->{$_}{dhcp_dns}; #dns
+	uci "add_list dhcp.$_.dhcp_option=\'15,$ifs_r->{$_}{dhcp_dns_suffix}\'";
+	uci "add_list dhcp.$_.dhcp_option=\'44,$ifs_r->{$_}{dhcp_wins}\'"; #wins
+	uci "add_list dhcp.$_.dhcp_option=\'46,8\'";
+      } else {
+        # disable dhcp at all
+        uci "set dhcp.$_.ignore=1";
+      }
+    }
   }
-  # configure dhcp on lan
-  uci "set dhcp.lan.start=\'$hostparam{dhcp_start}\'";
-  uci "set dhcp.lan.limit=\'$hostparam{dhcp_limit}\'";
-  uci "set dhcp.lan.leasetime=\'24h\'";
-  # disable dhcp at all
-  uci "set dhcp.lan.ignore=".(($hostparam{dhcp_on} > 0)?0:1);
-  # only allow static leases
-  #uci "set dhcp.lan.dynamicdhcp=0";
-  # dhcpv6
-  uci "set dhcp.lan.dhcpv6=\'disabled\'";
-  uci "set dhcp.lan.ra=\'disabled\'";
-
-  quci "delete dhcp.lan.dhcp_option";
-  #uci "add_list dhcp.lan.dhcp_option=\'3,192.168.33.81\'"; #router
-  #uci "add_list dhcp.lan.dhcp_option=\'6,10.14.0.2,10.14.0.1\'"; #dns
-  uci "add_list dhcp.lan.dhcp_option=\'15,$hostparam{dhcp_dns_suffix}\'";
-  uci "add_list dhcp.lan.dhcp_option=\'44,$hostparam{dhcp_wins}\'"; #wins
-  uci "add_list dhcp.lan.dhcp_option=\'46,8\'";
-
   quci "delete dhcp.\@host[-1]" foreach 0..9;
   # static leases TODO
   #uci "add dhcp host";
   #uci "set dhcp.\@host[-1].ip=\'192.168.33.82\'";
   #uci "set dhcp.\@host[-1].mac=\'00:11:22:33:44:55\'";
   #uci "set dhcp.\@host[-1].name=\'host1\'";
+
   say "DHCP and DNS configured.";
 
-  uci "show network";
-  #uci "show dhcp";
+  #uci "show network";
+  uci "show dhcp";
   uci "commit network";
   uci "commit dhcp";
 
