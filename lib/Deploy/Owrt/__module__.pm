@@ -385,15 +385,15 @@ task "conf_system", sub {
     owner => "ural",
     group => "root",
     mode => 644,
-    content => template($tpl_sys_file);
-  say "/etc/config/system created.";
+    content => template($tpl_sys_file),
+    on_change => sub { say "/etc/config/system created." };
 
   file "/etc/banner",
     owner => "ural",
     group => "root",
     mode => 644,
-    content => template("files/banner.0.tpl", _hostname=>$hostparam{host});
-  say "banner updated.";
+    content => template("files/banner.0.tpl", _hostname=>$hostparam{host}),
+    on_change => sub { say "banner updated." };
 
   uci "revert system";
 

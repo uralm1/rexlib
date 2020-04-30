@@ -7,7 +7,7 @@ use DBI;
 use NetAddr::IP;
 use feature 'state';
 
-# params
+# params: usage $hostparam{key}
 my %hostparam = (
   host => '',
   gateway => '',
@@ -30,7 +30,11 @@ my %hostparam = (
   tun_pub_key => '',
   tun_priv_key => '',
   tun_array_ref => [],
-  hacks => {codename=>'content',},
+);
+
+# hacks: usage $hosthacks{codename}
+my %hosthacks = (
+  #codename => 'content',
 );
 
 ##################################
@@ -93,17 +97,23 @@ WHERE host_name = ?", {}, $_host);
 
   # read hacks
   my $ar = $dbh->selectall_arrayref("SELECT \
-codename, hack \
+codename, hack, add_comment \
 FROM hacks \
 WHERE router_id = ?", {Slice=>{}, MaxRows=>100}, $hostparam{router_id});
   die "Getting hacks failure.\n" unless $ar;
   for (@$ar) {
+    my $pre_comm = '';
+    my $post_comm = '';
+    if ($_->{add_comment}) {
+      $pre_comm = "\n### BEGIN OF $_->{codename} HACK ###\n";
+      $post_comm = "\n### END OF $_->{codename} HACK ###\n";
+    }
     $_->{hack} =~ s/\r\n/\n/g; # dos2unix
-    $hostparam{hacks}->{$_->{codename}} = "\n### BEGIN OF $_->{codename} HACK ###\n".$_->{hack}."\n### END OF $_->{codename} HACK ###\n";
+    $hosthacks{$_->{codename}} = $pre_comm.$_->{hack}.$post_comm;
   }
+  #say Dumper \%hosthacks;
 
-
-  say Dumper \%hostparam;
+  #say Dumper \%hostparam;
 
   $dbh->disconnect;
   say "Erebus configuration has successfully been read from the database.";
@@ -229,11 +239,13 @@ task "deploy_router", sub {
   say "Department: $hostparam{dept_name}\n" if $hostparam{dept_name};
   #Deploy::Erebus::conf_system();
   #sleep 1;
-  Deploy::Erebus::conf_net();
-  sleep 1;
-  #run_task "Deploy:Owrt:conf_fw", on=>connection->server;
+  #Deploy::Erebus::conf_net();
   #sleep 1;
-  #run_task "Deploy:Owrt:conf_tun", on=>connection->server;
+  ##run_task "Deploy:Owrt:conf_fw", on=>connection->server;
+  ##sleep 1;
+  ##run_task "Deploy:Owrt:conf_tun", on=>connection->server;
+  Deploy::Erebus::conf_ipsec();
+  sleep 1;
   say "Router deployment/Erebus/ finished for $hostparam{host}";
   say "!!! Reboot router manually to apply changes !!!";
 };
@@ -258,10 +270,9 @@ task "conf_system", sub {
   say "Updating package database.";
   update_package_db;
   say "Installing / updating packages.";
-  for (qw/ip-full tc iperf3 irqbalance ethtool lm-sensors lm-sensors-detect/) {
-    pkg $_, ensure => latest, on_change => sub {
-      say "package $_ was installed.";
-    }
+  for (qw/ip-full tc iperf3 irqbalance ethtool lm-sensors lm-sensors-detect strongswan-default tinc snmpd snmp-utils/) {
+    pkg $_, ensure => latest,
+      on_change => sub { say "package $_ was installed." };
   }
 
   my $tpl_sys_file = 'files/system.x86.tpl';
@@ -269,15 +280,15 @@ task "conf_system", sub {
     owner => "ural",
     group => "root",
     mode => 644,
-    content => template($tpl_sys_file);
-  say "/etc/config/system created.";
+    content => template($tpl_sys_file),
+    on_change => sub { say "/etc/config/system created." };
 
   file "/etc/banner",
     owner => "ural",
     group => "root",
     mode => 644,
-    content => template("files/banner.0.tpl", _hostname=>$hostparam{host});
-  say "banner updated.";
+    content => template("files/banner.0.tpl", _hostname=>$hostparam{host}),
+    on_change => sub { say "banner updated." };
 
   uci "revert system";
 
@@ -376,9 +387,10 @@ task "conf_net", sub {
     owner => "ural",
     group => "root",
     mode => 644,
-    source => "files/rt_tables";
+    source => "files/rt_tables",
+    on_change => sub { say "/etc/iproute2/rt_tables created." };
 
-  my $h = $hostparam{hacks}->{rt_tables_config};
+  my $h = $hosthacks{rt_tables_config};
   append_if_no_such_line($rt_file,
     line => $h,
     on_change => sub {
@@ -478,12 +490,12 @@ task "conf_net", sub {
   say "DHCP and DNS configured.";
 
   #uci "show network";
-  uci "show dhcp";
+  #uci "show dhcp";
   uci "commit network";
   uci "commit dhcp";
 
   # append ip_rules_config hack to network
-  $h = $hostparam{hacks}->{ip_rules_config};
+  $h = $hosthacks{ip_rules_config};
   append_if_no_such_line($network_file,
     line => $h,
     on_change => sub {
@@ -492,6 +504,45 @@ task "conf_net", sub {
   ) if $h;
 
   say "\nNetwork configuration finished for $hostparam{host}. Restarting the router will change the IP-s!!!.\n";
+};
+
+
+desc "Erebus router: Configure IPsec";
+# if --confhost=erebus parameter is specified, host configuration is read
+# from the database, otherwise uses current
+task "conf_ipsec", sub {
+  my $ch = shift->{confhost};
+  read_db $ch if $ch;
+  check_par;
+
+  say "IPsec configuration started for $hostparam{host}";
+
+  # strongswan init
+  file '/etc/init.d/ipsec',
+    owner => "ural",
+    group => "root",
+    mode => 755,
+    source => "files/ipsec.init",
+    on_change => sub { say "Strongswan init file created." };
+  
+  # strongswan config
+  my $swc_file = '/etc/config/ipsec';
+  file $swc_file,
+    owner => "ural",
+    group => "root",
+    mode => 644,
+    content => template('files/ipsec.0.tpl'),
+    on_change => sub { say "/etc/config/ipsec created." };
+
+  my $h = $hosthacks{strongswan_config};
+  append_if_no_such_line($swc_file,
+    line => $h,
+    on_change => sub {
+      say "Hack strongswan_config was added to /etc/config/ipsec.";
+    }
+  ) if $h;
+
+  say "IPsec configuration finished for $hostparam{host}";
 };
 
 
