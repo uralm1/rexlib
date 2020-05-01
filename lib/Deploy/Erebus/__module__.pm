@@ -7,6 +7,8 @@ use DBI;
 use NetAddr::IP;
 use feature 'state';
 
+my $def_net = "UWC66";
+
 # params: usage $hostparam{key}
 my %hostparam = (
   host => '',
@@ -94,6 +96,44 @@ WHERE host_name = ?", {}, $_host);
   $hostparam{dns} = [split /,/, $hostparam{dns_unparsed}];
   # parse ssh_icmp_from_wans_ips
   $hostparam{ssh_icmp_from_wans_ips} = [split /,/, $hostparam{ssh_icmp_from_wans_ips_unparsed}];
+
+  # read vpn parameters
+  $hr = $dbh->selectrow_hashref("SELECT \
+routers.host_name AS tun_node_name, \
+ifs.ip AS tun_node_ip, \
+nets.net_ip AS tun_subnet_ip, \
+nets.mask AS tun_subnet_mask, \
+tun_ip AS tun_int_ip, \
+tun_netmask AS tun_int_netmask, \
+pub_key AS tun_pub_key, \
+priv_key AS tun_priv_key \
+FROM vpns \
+INNER JOIN routers ON routers.id = router_id \
+INNER JOIN nets ON nets.id = subnet_id \
+INNER JOIN interfaces ifs ON ifs.id = node_if_id \
+WHERE routers.host_name = ?", {}, $_host);
+  die "There's no such vpn in the database, or database error.\n" unless $hr;
+  #say Dumper $hr;
+  %hostparam = (%hostparam, %$hr);
+
+  my $net = NetAddr::IP->new($hr->{tun_subnet_ip}, $hr->{tun_subnet_mask}) or
+    die("Invalid vpn subnet address or mask!\n");
+  $hostparam{tun_subnet} = $net->cidr;
+
+  $hostparam{tun_array_ref} = read_tunnels_tinc();
+  #say Dumper $hostparam{tun_array_ref};
+
+  # build tinc connect_to list of nodes
+  my @tmp_list = grep { $_->{from_hostname} eq $hostparam{tun_node_name} } @{$hostparam{tun_array_ref}};
+  #say Dumper \@tmp_list;
+  say "INFORMATION! NO destination VPN tunnels are configured for this node. ConnectTo list will be empty." unless @tmp_list;
+
+  $hostparam{tun_connect_nodes} = remove_dups([map { $_->{to_hostname} } @tmp_list]);
+  foreach (@{$hostparam{tun_connect_nodes}}) {
+    die "Invalid tunnel configuration! Source node connected to itself!\n" if $_ eq $hostparam{tun_node_name};
+  }
+  ### TODO: check if we can run without vpn configuration records
+
 
   # read hacks
   my $ar = $dbh->selectall_arrayref("SELECT \
@@ -199,6 +239,38 @@ WHERE net_src_id = ?", {Slice=>{}, MaxRows=>500}, $_->{net_src_id});
 }
 
 
+sub remove_dups {
+  my $aref = shift;
+  my %seen;
+  return [grep { ! $seen{ $_ }++ } @$aref];
+}
+
+
+sub read_tunnels_tinc {
+  my $s = $dbh->prepare("SELECT \
+t.id AS id, \
+r1.host_name AS from_hostname, \
+ifs1.ip AS from_ip, \
+r2.host_name AS to_hostname, \
+ifs2.ip AS to_ip \
+FROM tunnels t \
+INNER JOIN vpns v1 ON t.vpn_from_id = v1.id \
+INNER JOIN routers r1 ON v1.router_id = r1.id \
+INNER JOIN interfaces ifs1 ON v1.node_if_id = ifs1.id \
+INNER JOIN vpns v2 ON t.vpn_to_id = v2.id \
+INNER JOIN routers r2 ON v2.router_id = r2.id \
+INNER JOIN interfaces ifs2 ON v2.node_if_id = ifs2.id \
+WHERE t.vpn_type_id = 1");
+  $s->execute;
+  my @t_arr;
+  while (my $hr = $s->fetchrow_hashref) {
+    #say Dumper $hr;
+    push @t_arr, $hr;
+  }
+  return \@t_arr;
+}
+
+
 sub check_par {
   die "Hostname parameter is empty. Configuration wasn't read.\n" unless $hostparam{host}; 
   die "Unsupported operating system!\n" unless operating_system_is('OpenWrt');
@@ -241,10 +313,9 @@ task "deploy_router", sub {
   #sleep 1;
   #Deploy::Erebus::conf_net();
   #sleep 1;
-  ##run_task "Deploy:Owrt:conf_fw", on=>connection->server;
-  ##sleep 1;
-  ##run_task "Deploy:Owrt:conf_tun", on=>connection->server;
-  Deploy::Erebus::conf_ipsec();
+  #Deploy::Erebus::conf_ipsec();
+  #sleep 1;
+  Deploy::Erebus::conf_tinc();
   sleep 1;
   say "Router deployment/Erebus/ finished for $hostparam{host}";
   say "!!! Reboot router manually to apply changes !!!";
@@ -261,7 +332,7 @@ task "conf_system", sub {
 
   say "System configuration started for $hostparam{host}";
 
-  # disable failsafe mode prompt
+  # disable failsafe mode prompt (erebus is always x64)
   say "Disabling failsafe mode prompts.";
   file "/lib/preinit/30_failsafe_wait", ensure=>'absent';
   file "/lib/preinit/99_10_failsafe_login", ensure=>'absent';
@@ -517,6 +588,8 @@ task "conf_ipsec", sub {
 
   say "IPsec configuration started for $hostparam{host}";
 
+  pkg "strongswan-default", ensure => "present";
+
   # strongswan init
   file '/etc/init.d/ipsec',
     owner => "ural",
@@ -543,6 +616,100 @@ task "conf_ipsec", sub {
   ) if $h;
 
   say "IPsec configuration finished for $hostparam{host}";
+};
+
+
+desc "Erebus router: Configure tinc";
+# if --confhost=erebus parameter is specified, host configuration is read
+# from the database, otherwise uses current
+task "conf_tinc", sub {
+  my $ch = shift->{confhost};
+  read_db $ch if $ch;
+  check_par;
+
+  say "Tinc configuration started for $hostparam{host}";
+
+  pkg "tinc", ensure => "present";
+
+  file "/etc/config/tinc",
+    owner => "ural",
+    group => "root",
+    mode => 644,
+    content => template("files/tinc.0.tpl");
+  quci "revert tinc";
+
+  uci "set tinc.$def_net=tinc-net";
+  uci "set tinc.\@tinc-net[-1].enabled=1";
+  uci "set tinc.\@tinc-net[-1].debug=2";
+  uci "set tinc.\@tinc-net[-1].AddressFamily=ipv4";
+  uci "set tinc.\@tinc-net[-1].Interface=vpn1";
+  uci "set tinc.\@tinc-net[-1].BindToAddress=\'$hostparam{tun_node_ip}\'";
+  uci "set tinc.\@tinc-net[-1].MaxTimeout=600";
+  uci "set tinc.\@tinc-net[-1].Name=\'$hostparam{tun_node_name}\'";
+  uci "add_list tinc.\@tinc-net[-1].ConnectTo=\'$_\'" for (@{$hostparam{tun_connect_nodes}});
+
+  uci "set tinc.$hostparam{tun_node_name}=tinc-host";
+  uci "set tinc.\@tinc-host[-1].enabled=1";
+  uci "set tinc.\@tinc-host[-1].net=\'$def_net\'";
+  uci "set tinc.\@tinc-host[-1].Cipher=blowfish";
+  uci "set tinc.\@tinc-host[-1].Compression=0";
+  uci "add_list tinc.\@tinc-host[-1].Address=\'$hostparam{tun_node_ip}\'";
+  uci "set tinc.\@tinc-host[-1].Subnet=\'$hostparam{tun_subnet}\'";
+
+  #uci "show tinc";
+  uci "commit tinc";
+  say "File /etc/config/tinc configured.";
+
+  # configure tinc scripts
+  file "/etc/tinc/$def_net",
+    owner => "ural",
+    group => "root",
+    mode => 755,
+    ensure => "directory";
+
+  my $int_addr = NetAddr::IP->new($hostparam{tun_int_ip}, $hostparam{tun_int_netmask}) or
+    die "Invalid vpn tunnel interface address or mask!\n";
+  file "/etc/tinc/$def_net/tinc-up",
+    owner => "ural",
+    group => "root",
+    mode => 755,
+    content => template("files/tinc/$def_net/tinc-up.tpl",
+      _tun_ip =>$int_addr->addr,
+      _tun_netmask=>$int_addr->mask,
+      _tun_route_addr=>$int_addr->network->cidr,
+    );
+  
+  file "/etc/tinc/$def_net/tinc-down",
+    owner => "ural",
+    group => "root",
+    mode => 755,
+    content => template("files/tinc/$def_net/tinc-down.tpl",
+      _tun_route_addr=>$int_addr->network->cidr,
+    );
+  say "Scripts tinc-up/tinc-down are created.";
+
+  unless ($hostparam{tun_pub_key} && $hostparam{tun_priv_key}) {
+    say "No keypair found in the database, running gen_node for $hostparam{tun_node_name}...";
+    run_task "Deploy:Owrt:gen_node", params=>{newnode=>$hostparam{tun_node_name}};
+  } else {
+    say "Keypair for $hostparam{tun_node_name} from the database is used.";
+  }
+    
+  # configure tinc keys
+  file "/etc/tinc/$def_net/rsa_key.priv",
+    owner => "ural",
+    group => "root",
+    mode => 600,
+    content => $hostparam{tun_priv_key},
+    on_change => sub {
+      say "Tinc private key file for $hostparam{tun_node_name} is saved to rsa_key.priv";
+    };
+
+  # generate all hosts files for this node
+  sleep 1;
+  Deploy::Owrt::dist_nodes({ext_hostparam=>\%hostparam});
+
+  say "Tinc configuration finished for $hostparam{host}";
 };
 
 

@@ -87,9 +87,9 @@ task "x86_preconf", sub {
 my $dbh;
 
 sub read_db {
-  my $_host = shift;
+  my ($_host, %args) = @_;
   die "Hostname is empty. Invalid task parameters.\n" unless $_host; 
-  die "Erebus router must be configured by Deploy:Erebus:* tasks.\n" if $_host =~ /^erebus$/; 
+  die "Erebus router must be configured by Deploy:Erebus:* tasks.\n" if (!$args{skip_erebus_check} && $_host =~ /^erebus$/); 
 
   $dbh = DBI->connect("DBI:mysql:database=".get(cmdb('dbname')).';host='.get(cmdb('dbhost')), get(cmdb('dbuser')), get(cmdb('dbpass'))) or 
     die "Connection to the database failed.\n";
@@ -152,18 +152,25 @@ WHERE host_name = ?", {}, $_host);
   # read vpn parameters
   $hr = $dbh->selectrow_hashref("SELECT \
 routers.host_name AS tun_node_name, \
-node_ip AS tun_node_ip, \
-subnet AS tun_subnet, \
+ifs.ip AS tun_node_ip, \
+nets.net_ip AS tun_subnet_ip, \
+nets.mask AS tun_subnet_mask, \
 tun_ip AS tun_int_ip, \
 tun_netmask AS tun_int_netmask, \
 pub_key AS tun_pub_key, \
 priv_key AS tun_priv_key \
 FROM vpns \
 INNER JOIN routers ON routers.id = router_id \
+INNER JOIN nets ON nets.id = subnet_id \
+INNER JOIN interfaces ifs ON ifs.id = node_if_id \
 WHERE routers.host_name = ?", {}, $_host);
   die "There's no such vpn in the database, or database error.\n" unless $hr;
   #say Dumper $hr;
   %hostparam = (%hostparam, %$hr);
+
+  my $net = NetAddr::IP->new($hr->{tun_subnet_ip}, $hr->{tun_subnet_mask}) or
+    die("Invalid vpn subnet address or mask!\n");
+  $hostparam{tun_subnet} = $net->cidr;
 
   $hostparam{tun_array_ref} = read_tunnels_tinc();
   #say Dumper $hostparam{tun_array_ref};
@@ -216,7 +223,6 @@ INNER JOIN nets wn ON wn.id = wans.net_id");
     }
     push @w_route_list, {name => $_r_name, target => $_r_target, netmask => $_r_netmask, gateway => $hostparam{gateway}};
   }
-  $sth->finish;
   $hostparam{auto_wan_routes} = \@w_route_list;
   #say Dumper $hostparam{auto_wan_routes};
 
@@ -237,14 +243,16 @@ sub read_tunnels_tinc {
   my $s = $dbh->prepare("SELECT \
 t.id AS id, \
 r1.host_name AS from_hostname, \
-v1.node_ip AS from_ip, \
+ifs1.ip AS from_ip, \
 r2.host_name AS to_hostname, \
-v2.node_ip AS to_ip \
+ifs2.ip AS to_ip \
 FROM tunnels t \
 INNER JOIN vpns v1 ON t.vpn_from_id = v1.id \
 INNER JOIN routers r1 ON v1.router_id = r1.id \
+INNER JOIN interfaces ifs1 ON v1.node_if_id = ifs1.id \
 INNER JOIN vpns v2 ON t.vpn_to_id = v2.id \
 INNER JOIN routers r2 ON v2.router_id = r2.id \
+INNER JOIN interfaces ifs2 ON v2.node_if_id = ifs2.id \
 WHERE t.vpn_type_id = 1");
   $s->execute;
   my @t_arr;
@@ -252,7 +260,6 @@ WHERE t.vpn_type_id = 1");
     #say Dumper $hr;
     push @t_arr, $hr;
   }
-  $s->finish;
   return \@t_arr;
 }
 
@@ -618,7 +625,7 @@ task "conf_fw", sub {
   #uci "set firewall.\@rule[-1].name=syslog-wan-out";
   uci "set firewall.\@rule[-1].dest=wan";
   uci "set firewall.\@rule[-1].proto=udp";
-  uci "set firewall.\@rule[-1].dest_ip=\'".$hostparam{log_ip}."\'";
+  uci "set firewall.\@rule[-1].dest_ip=\'$hostparam{log_ip}\'";
   uci "set firewall.\@rule[-1].dest_port=514";
   uci "set firewall.\@rule[-1].target=ACCEPT";
 
@@ -711,7 +718,7 @@ task "conf_tun", sub {
   uci "set tinc.\@tinc-net[-1].AddressFamily=ipv4";
   uci "set tinc.\@tinc-net[-1].Interface=vpn1";
   uci "set tinc.\@tinc-net[-1].MaxTimeout=600";
-  uci "set tinc.\@tinc-net[-1].Name=\'".$hostparam{tun_node_name}."\'";
+  uci "set tinc.\@tinc-net[-1].Name=\'$hostparam{tun_node_name}\'";
   uci "add_list tinc.\@tinc-net[-1].ConnectTo=\'$_\'" foreach (@{$hostparam{tun_connect_nodes}});
 
   uci "set tinc.$hostparam{tun_node_name}=tinc-host";
@@ -719,8 +726,8 @@ task "conf_tun", sub {
   uci "set tinc.\@tinc-host[-1].net=\'$def_net\'";
   uci "set tinc.\@tinc-host[-1].Cipher=blowfish";
   uci "set tinc.\@tinc-host[-1].Compression=0";
-  uci "add_list tinc.\@tinc-host[-1].Address=\'".$hostparam{tun_node_ip}."\'";
-  uci "set tinc.\@tinc-host[-1].Subnet=\'".$hostparam{tun_subnet}."\'";
+  uci "add_list tinc.\@tinc-host[-1].Address=\'$hostparam{tun_node_ip}\'";
+  uci "set tinc.\@tinc-host[-1].Subnet=\'$hostparam{tun_subnet}\'";
 
   #uci "show tinc";
   uci "commit tinc";
@@ -765,7 +772,7 @@ task "conf_tun", sub {
 
   # generate all hosts files for this node
   sleep 1;
-  run_task "Deploy:Owrt:dist_nodes", on=>connection->server;
+  Deploy:Owrt:dist_nodes();
 
   say "Tinc tunnel configuration finished for $hostparam{host}";
 };
@@ -818,12 +825,17 @@ desc "Distribute tinc net hosts files to host (works on erebus too)";
 # if --confhost=host parameter is specified, host configuration is read
 # from the database, otherwise uses current
 task "dist_nodes", sub {
-  my $ch = shift->{confhost};
-  read_db $ch if $ch;
-  # like check_par() but we should run on erebus too...
-  die "Hostname is empty. Configuration wasn't read" unless $hostparam{host}; 
+  my $params = shift;
+  my $ch = $params->{confhost};
+  read_db($ch, skip_erebus_check=>1) if $ch;
 
-  say "Tinc hostfiles distribution started for $hostparam{host}";
+  my $hostparam_ref = \%hostparam;
+  $hostparam_ref = $params->{ext_hostparam} if ($params->{ext_hostparam});
+
+  # like check_par() but we should run on erebus too...
+  die "Hostname is empty. Configuration wasn't read" unless $hostparam_ref->{host}; 
+
+  say "Tinc hostfiles distribution started for $hostparam_ref->{host}";
 
   file "/etc/tinc/$def_net/hosts",
     owner => "ural",
@@ -838,23 +850,30 @@ task "dist_nodes", sub {
 
   my $s = $dbh->prepare("SELECT \
 routers.host_name AS tun_node_name, \
-node_ip AS tun_node_ip, \
-subnet AS tun_subnet, \
+ifs.ip AS tun_node_ip, \
+nets.net_ip AS tun_subnet_ip, \
+nets.mask AS tun_subnet_mask, \
 pub_key AS tun_pub_key \
 FROM vpns \
-INNER JOIN routers ON routers.id = router_id") or die $dbh->errstr;
+INNER JOIN routers ON routers.id = router_id \
+INNER JOIN nets ON nets.id = subnet_id \
+INNER JOIN interfaces ifs ON ifs.id = node_if_id") or die $dbh->errstr;
   $s->execute or die $s->errstr;
   my @hosts_files;
   while (my $hr = $s->fetchrow_hashref) {
     #say Dumper $hr;
 
-    unless ($hr->{tun_pub_key} && $hr->{tun_subnet} && $hr->{tun_node_ip}) {
+    unless ($hr->{tun_pub_key} && $hr->{tun_subnet_ip} && $hr->{tun_subnet_mask} && $hr->{tun_node_ip}) {
       say "Host file for node $hr->{tun_node_name} is not generated due incorrect configuration:";
       say "- No public key in database. Generate keys for this host and run distribution again." unless ($hr->{tun_pub_key});
-      say "- No vpn subnet in database. Check configuration." unless ($hr->{tun_subnet});
+      say "- No vpn subnet ip/mask in database. Check configuration." unless ($hr->{tun_subnet_ip} && $hr->{tun_subnet_mask});
       say "- No vpn ip in database. Check configuration." unless ($hr->{tun_node_ip});
       next;
     }
+
+    my $net = NetAddr::IP->new($hr->{tun_subnet_ip}, $hr->{tun_subnet_mask}) or
+      die("Invalid vpn subnet address or mask!\n");
+
     # now generate tinc host file with public key
     file "/etc/tinc/$def_net/hosts/$hr->{tun_node_name}",
       owner => "ural",
@@ -862,17 +881,16 @@ INNER JOIN routers ON routers.id = router_id") or die $dbh->errstr;
       mode => 644,
       content => template("files/tinc/$def_net/hostfile.tpl",
 	_address=>$hr->{tun_node_ip},
-	_subnet=>$hr->{tun_subnet},
+	_subnet=>$net->cidr,
         _pubkey=>$hr->{tun_pub_key});
     push @hosts_files, $hr->{tun_node_name};
     say "Host file for $hr->{tun_node_name} is generated.";
   }
-  $s->finish;
   $dbh->disconnect;
 
   # check for hosts in connection list exist
-  my @_con_list = @{$hostparam{tun_connect_nodes}};
-  push @_con_list, $hostparam{tun_node_name}; # current host must be in list too
+  my @_con_list = @{$hostparam_ref->{tun_connect_nodes}};
+  push @_con_list, $hostparam_ref->{tun_node_name}; # current host must be in list too
   foreach my $h (@_con_list) {
     my $f = 0;
     foreach (@hosts_files) {
@@ -881,7 +899,7 @@ INNER JOIN routers ON routers.id = router_id") or die $dbh->errstr;
     say "WARNING! Host $h is in tinc connection list, but not distributed." unless ($f);
   }
 
-  say "Tinc hostfiles distribution finished for $hostparam{host}";
+  say "Tinc hostfiles distribution finished for $hostparam_ref->{host}";
 };
 
 
