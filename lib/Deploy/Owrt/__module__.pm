@@ -772,7 +772,7 @@ task "conf_tun", sub {
 
   # generate all hosts files for this node
   sleep 1;
-  Deploy:Owrt:dist_nodes();
+  Deploy::Owrt::dist_nodes();
 
   say "Tinc tunnel configuration finished for $hostparam{host}";
 };
