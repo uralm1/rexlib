@@ -4,22 +4,25 @@ config defaults
 	option output		DROP
 	option forward		DROP
 # Uncomment this line to disable ipv6 rules
-	option disable_ipv6	1
+###	option disable_ipv6	1
 
 config zone
 	option name		lan
-	list   network		'lan'
+<% for my $if (@{ $_lan_interfaces }) { %>
+	list network	'<%= $if %>'
+<% } %>
 	option input		REJECT
 	option output		DROP
 	option forward		DROP
 	option log 1
         # comment to debug
-	option log_limit '12/hour'
+	#option log_limit '12/hour'
 
 config zone
 	option name		wan
-	list   network		'wan'
-	#list   network		'wan6'
+<% for my $if (@{ $_wan_interfaces }) { %>
+	list network	'<%= $if %>'
+<% } %>
 	option input		DROP
 	option output		DROP
 	option forward		DROP
@@ -27,7 +30,7 @@ config zone
 	#option mtu_fix		1
 	option log 1
         # comment to debug
-	option log_limit '12/hour'
+	#option log_limit '12/hour'
 
 config zone
 	option name vpn
@@ -37,6 +40,8 @@ config zone
 	option output		DROP
 	option forward		DROP
 	option log 1
+        # comment to debug
+	#option log_limit '12/hour'
 
 
 ### LAN ###
@@ -81,6 +86,20 @@ config rule
 	option target ACCEPT
 
 config rule
+	option name dnscl-lan-in
+	option src lan
+	option proto udp
+	option src_port 53
+	option target ACCEPT
+
+config rule
+	option name dnscl-lan-out
+	option dest lan
+	option proto udp
+	option dest_port 53
+	option target ACCEPT
+
+config rule
 	option name dhcp-lan-in
 	option src lan
 	option proto udp
@@ -116,30 +135,5 @@ config rule
 
 
 ### VPN ###
-config rule
-	option name tunnel-to-router
-	option src vpn
-	option proto all
-	option target ACCEPT
-
-config rule
-	option name router-to-tunnel
-	option dest vpn
-	option proto all
-	option target ACCEPT
-
-config rule
-	option name tunnel-to-lan
-	option src vpn
-	option dest lan
-	option proto all
-	option target ACCEPT
-
-config rule
-	option name lan-to-tunnel
-	option src lan
-	option dest vpn
-	option proto all
-	option target ACCEPT
 ###################
 
