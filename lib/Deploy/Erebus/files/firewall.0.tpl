@@ -135,5 +135,17 @@ config rule
 
 
 ### VPN ###
+config rule
+	option name tunnel-to-router
+	option src vpn
+	option proto all
+	option target ACCEPT
+
+config rule
+	option name router-to-tunnel
+	option dest vpn
+	option proto all
+	option target ACCEPT
+
 ###################
 
