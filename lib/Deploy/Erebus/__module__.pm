@@ -895,6 +895,7 @@ task "conf_fw", sub {
     uci "set firewall.\@rule[-1].proto=tcpudp";
     uci "set firewall.\@rule[-1].src_ip=\'$_\'";
     uci "set firewall.\@rule[-1].src_port=655";
+    uci "set firewall.\@rule[-1].family=ipv4";
     uci "set firewall.\@rule[-1].target=ACCEPT";
     # tinc-outgoing-wan-out-xxx
     uci "add firewall rule";
@@ -903,6 +904,7 @@ task "conf_fw", sub {
     uci "set firewall.\@rule[-1].proto=tcpudp";
     uci "set firewall.\@rule[-1].dest_ip=\'$_\'";
     uci "set firewall.\@rule[-1].dest_port=655";
+    uci "set firewall.\@rule[-1].family=ipv4";
     uci "set firewall.\@rule[-1].target=ACCEPT";
   }
   # build incoming tinc rules
@@ -914,6 +916,7 @@ task "conf_fw", sub {
     uci "set firewall.\@rule[-1].proto=tcpudp";
     uci "set firewall.\@rule[-1].src_ip=\'$_\'";
     uci "set firewall.\@rule[-1].dest_port=655";
+    uci "set firewall.\@rule[-1].family=ipv4";
     uci "set firewall.\@rule[-1].target=ACCEPT";
     # tinc-incoming-wan-out-xxx
     uci "add firewall rule";
@@ -922,6 +925,7 @@ task "conf_fw", sub {
     uci "set firewall.\@rule[-1].proto=tcpudp";
     uci "set firewall.\@rule[-1].dest_ip=\'$_\'";
     uci "set firewall.\@rule[-1].src_port=655";
+    uci "set firewall.\@rule[-1].family=ipv4";
     uci "set firewall.\@rule[-1].target=ACCEPT";
   }
 

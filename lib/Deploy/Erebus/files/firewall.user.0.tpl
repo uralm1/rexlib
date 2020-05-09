@@ -6,6 +6,10 @@
 # put custom rules into the root chains e.g. INPUT or FORWARD or into the
 # special user chains, e.g. input_wan_rule or postrouting_lan_rule.
 
+### delete default DNAT helper rules ###
+iptables -D zone_vpn_input -m conntrack --ctstate DNAT -m comment --comment "!fw3: Accept port redirections" -j ACCEPT
+iptables -D zone_vpn_forward -m conntrack --ctstate DNAT -m comment --comment "!fw3: Accept port forwards" -j ACCEPT
+
 ### DONT LOG before DROP rules ###
 # lan zone
 # annoying netbios broadcasts on lan
