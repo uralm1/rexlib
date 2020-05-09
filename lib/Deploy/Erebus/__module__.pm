@@ -877,6 +877,22 @@ task "conf_fw", sub {
   uci "set firewall.\@rule[-1].dest_port=123";
   uci "set firewall.\@rule[-1].target=ACCEPT";
 
+  # snmp-lan-in
+  uci "add firewall rule";
+  #uci "set firewall.\@rule[-1].name=snmp-lan-in";
+  uci "set firewall.\@rule[-1].src=lan";
+  uci "set firewall.\@rule[-1].proto=udp";
+  uci "set firewall.\@rule[-1].dest_port=161";
+  uci "set firewall.\@rule[-1].target=ACCEPT";
+
+  # snmp-lan-out
+  uci "add firewall rule";
+  #uci "set firewall.\@rule[-1].name=snmp-lan-out";
+  uci "set firewall.\@rule[-1].dest=lan";
+  uci "set firewall.\@rule[-1].proto=udp";
+  uci "set firewall.\@rule[-1].src_port=161";
+  uci "set firewall.\@rule[-1].target=ACCEPT";
+
   #####
   my @outgoing_rules_ip_list;
   recursive_search_by_from_hostname(\@outgoing_rules_ip_list, $hostparam{tun_node_name});
