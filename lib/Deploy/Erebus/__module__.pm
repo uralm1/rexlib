@@ -272,6 +272,40 @@ WHERE t.vpn_type_id = 1");
 }
 
 
+sub recursive_search_by_from_hostname {
+  my $listref = shift;
+  my $hostname = shift;
+
+  state $loop_control = 0;
+  die "Wrong tunnels configuration (reqursive infinite loop found).\n" if $loop_control++ >= 30;
+
+  my @tt1 = grep { $_->{from_hostname} eq $hostname } @{$hostparam{tun_array_ref}};
+  foreach my $hh1 (@tt1) {
+    unless ((grep { $_ eq $hh1->{to_ip} } @$listref) || ($hh1->{to_hostname} eq $hostparam{tun_node_name})) {
+      push @$listref, $hh1->{to_ip};
+      recursive_search_by_from_hostname($listref, $hh1->{to_hostname});
+    }
+  }
+}
+
+
+sub recursive_search_by_to_hostname {
+  my $listref = shift;
+  my $hostname = shift;
+
+  state $loop_control = 0;
+  die "Wrong tunnels configuration (reqursive infinite loop found).\n" if $loop_control++ >= 30;
+
+  my @tt1 = grep { $_->{to_hostname} eq $hostname } @{$hostparam{tun_array_ref}};
+  foreach my $hh1 (@tt1) {
+    unless ((grep { $_ eq $hh1->{from_ip} } @$listref) || ($hh1->{from_hostname} eq $hostparam{tun_node_name})) {
+      push @$listref, $hh1->{from_ip};
+      recursive_search_by_to_hostname($listref, $hh1->{from_hostname});
+    }
+  }
+}
+
+
 sub check_par {
   die "Hostname parameter is empty. Configuration wasn't read.\n" unless $hostparam{host}; 
   die "Unsupported operating system!\n" unless operating_system_is('OpenWrt');
@@ -843,7 +877,53 @@ task "conf_fw", sub {
   uci "set firewall.\@rule[-1].dest_port=123";
   uci "set firewall.\@rule[-1].target=ACCEPT";
 
+  #####
+  my @outgoing_rules_ip_list;
+  recursive_search_by_from_hostname(\@outgoing_rules_ip_list, $hostparam{tun_node_name});
+  #say 'Outgoing: ', Dumper \@outgoing_rules_ip_list;
 
+  my @incoming_rules_ip_list;
+  recursive_search_by_to_hostname(\@incoming_rules_ip_list, $hostparam{tun_node_name});
+  #say 'Incoming: ', Dumper \@incoming_rules_ip_list;
+
+  # build outgoing tinc rules
+  foreach (@outgoing_rules_ip_list) {
+    # tinc-outgoing-wan-in-xxx
+    uci "add firewall rule";
+    #uci "set firewall.\@rule[-1].name=\'tinc-outgoing-wan-in-$_\'";
+    uci "set firewall.\@rule[-1].src=wan";
+    uci "set firewall.\@rule[-1].proto=tcpudp";
+    uci "set firewall.\@rule[-1].src_ip=\'$_\'";
+    uci "set firewall.\@rule[-1].src_port=655";
+    uci "set firewall.\@rule[-1].target=ACCEPT";
+    # tinc-outgoing-wan-out-xxx
+    uci "add firewall rule";
+    #uci "set firewall.\@rule[-1].name=\'tinc-outgoing-wan-out-$_\'";
+    uci "set firewall.\@rule[-1].dest=wan";
+    uci "set firewall.\@rule[-1].proto=tcpudp";
+    uci "set firewall.\@rule[-1].dest_ip=\'$_\'";
+    uci "set firewall.\@rule[-1].dest_port=655";
+    uci "set firewall.\@rule[-1].target=ACCEPT";
+  }
+  # build incoming tinc rules
+  foreach (@incoming_rules_ip_list) {
+    # tinc-incoming-wan-in-xxx
+    uci "add firewall rule";
+    #uci "set firewall.\@rule[-1].name=\'tinc-incoming-wan-in-$_\'";
+    uci "set firewall.\@rule[-1].src=wan";
+    uci "set firewall.\@rule[-1].proto=tcpudp";
+    uci "set firewall.\@rule[-1].src_ip=\'$_\'";
+    uci "set firewall.\@rule[-1].dest_port=655";
+    uci "set firewall.\@rule[-1].target=ACCEPT";
+    # tinc-incoming-wan-out-xxx
+    uci "add firewall rule";
+    #uci "set firewall.\@rule[-1].name=\'tinc-incoming-wan-out-$_\'";
+    uci "set firewall.\@rule[-1].dest=wan";
+    uci "set firewall.\@rule[-1].proto=tcpudp";
+    uci "set firewall.\@rule[-1].dest_ip=\'$_\'";
+    uci "set firewall.\@rule[-1].src_port=655";
+    uci "set firewall.\@rule[-1].target=ACCEPT";
+  }
 
   uci "add firewall include";
   uci "set firewall.\@include[-1].path=\'/etc/firewall.user\'";

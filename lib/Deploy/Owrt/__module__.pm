@@ -676,15 +676,15 @@ task "conf_fw", sub {
     uci "set firewall.\@rule[-1].src=wan";
     uci "set firewall.\@rule[-1].proto=tcpudp";
     uci "set firewall.\@rule[-1].src_ip=\'$_\'";
-    uci "set firewall.\@rule[-1].src_port=655";
+    uci "set firewall.\@rule[-1].dest_port=655";
     uci "set firewall.\@rule[-1].target=ACCEPT";
-    # tinc-outgoing-wan-out-xxx
+    # tinc-incoming-wan-out-xxx
     uci "add firewall rule";
     #uci "set firewall.\@rule[-1].name=\'tinc-incoming-wan-out-$_\'";
     uci "set firewall.\@rule[-1].dest=wan";
     uci "set firewall.\@rule[-1].proto=tcpudp";
     uci "set firewall.\@rule[-1].dest_ip=\'$_\'";
-    uci "set firewall.\@rule[-1].dest_port=655";
+    uci "set firewall.\@rule[-1].src_port=655";
     uci "set firewall.\@rule[-1].target=ACCEPT";
   }
 
