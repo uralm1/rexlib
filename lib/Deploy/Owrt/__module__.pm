@@ -4,7 +4,7 @@ use Rex -feature=>['1.3'];
 use Data::Dumper;
 use File::Basename;
 use DBI;
-use NetAddr::IP;
+use NetAddr::IP::Lite;
 use feature 'state';
 
 my $def_net = "UWC66";
@@ -168,7 +168,7 @@ WHERE routers.host_name = ?", {}, $_host);
   #say Dumper $hr;
   %hostparam = (%hostparam, %$hr);
 
-  my $net = NetAddr::IP->new($hr->{tun_subnet_ip}, $hr->{tun_subnet_mask}) or
+  my $net = NetAddr::IP::Lite->new($hr->{tun_subnet_ip}, $hr->{tun_subnet_mask}) or
     die("Invalid vpn subnet address or mask!\n");
   $hostparam{tun_subnet} = $net->cidr;
 
@@ -199,7 +199,7 @@ INNER JOIN nets wn ON wn.id = wans.net_id");
   RLIST: while (my $data = $sth->fetchrow_arrayref) {
     next RLIST if $data->[0] eq $_host; # skip self
     #say Dumper $data;
-    my $dst_ip = NetAddr::IP->new($data->[1], $data->[2]);
+    my $dst_ip = NetAddr::IP::Lite->new($data->[1], $data->[2]);
     die "Invalid wan ip address while building route list" unless $dst_ip;
     my $_r_name = 'w_'.lc($data->[0]);
     my $_r_target = $dst_ip->network->addr; #say "Network ip: ".$_r_target;
@@ -676,7 +676,7 @@ task "conf_fw", sub {
     uci "set firewall.\@rule[-1].src=wan";
     uci "set firewall.\@rule[-1].proto=tcpudp";
     uci "set firewall.\@rule[-1].src_ip=\'$_\'";
-    uci "set firewall.\@rule[-1].dest_port=655";
+    uci "set firewall.\@rule[-1].src_port=655";
     uci "set firewall.\@rule[-1].target=ACCEPT";
     # tinc-outgoing-wan-out-xxx
     uci "add firewall rule";
@@ -684,7 +684,7 @@ task "conf_fw", sub {
     uci "set firewall.\@rule[-1].dest=wan";
     uci "set firewall.\@rule[-1].proto=tcpudp";
     uci "set firewall.\@rule[-1].dest_ip=\'$_\'";
-    uci "set firewall.\@rule[-1].src_port=655";
+    uci "set firewall.\@rule[-1].dest_port=655";
     uci "set firewall.\@rule[-1].target=ACCEPT";
   }
 
@@ -884,7 +884,7 @@ INNER JOIN interfaces ifs ON ifs.id = node_if_id") or die $dbh->errstr;
       next;
     }
 
-    my $net = NetAddr::IP->new($hr->{tun_subnet_ip}, $hr->{tun_subnet_mask}) or
+    my $net = NetAddr::IP::Lite->new($hr->{tun_subnet_ip}, $hr->{tun_subnet_mask}) or
       die("Invalid vpn subnet address or mask!\n");
 
     # now generate tinc host file with public key

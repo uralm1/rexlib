@@ -5,7 +5,7 @@ use Rex -feature=>['1.4'];
 use Data::Dumper;
 use File::Basename;
 use DBI;
-use NetAddr::IP;
+use NetAddr::IP::Lite;
 use feature 'state';
 
 my $def_net = 'UWC66';
@@ -117,7 +117,7 @@ WHERE routers.host_name = ?", {}, $_host);
   #say Dumper $hr;
   %hostparam = (%hostparam, %$hr);
 
-  my $net = NetAddr::IP->new($hr->{tun_subnet_ip}, $hr->{tun_subnet_mask}) or
+  my $net = NetAddr::IP::Lite->new($hr->{tun_subnet_ip}, $hr->{tun_subnet_mask}) or
     die("Invalid vpn subnet address or mask!\n");
   $hostparam{tun_subnet} = $net->cidr;
 
@@ -324,13 +324,13 @@ task "deploy_router", sub {
   #sleep 1;
   #Deploy::Erebus::conf_net();
   #sleep 1;
-  #Deploy::Erebus::conf_fw();
+  Deploy::Erebus::conf_fw();
   #sleep 1;
   #Deploy::Erebus::conf_ipsec();
   #sleep 1;
   #Deploy::Erebus::conf_tinc();
   #sleep 1;
-  Deploy::Erebus::conf_r2d2();
+  #Deploy::Erebus::conf_r2d2();
   sleep 1;
   say "Router deployment/Erebus/ finished for $hostparam{host}";
   say "!!! Reboot router manually to apply changes !!!";
@@ -452,7 +452,7 @@ task "conf_net", sub {
   my $wan_ifname = 'eth1';
 
   # lan
-  my $gw = ($hostparam{gateway}) ? NetAddr::IP->new($hostparam{gateway}) : undef;
+  my $gw = ($hostparam{gateway}) ? NetAddr::IP::Lite->new($hostparam{gateway}) : undef;
   my $ifs_r = $hostparam{lan_ifs};
   for (sort keys %$ifs_r) {
     my $if_r = $ifs_r->{$_};
@@ -462,7 +462,7 @@ task "conf_net", sub {
     uci "set network.$_.proto=\'static\'";
     uci "set network.$_.ipaddr=\'$if_r->{ip}\'";
     uci "set network.$_.netmask=\'$if_r->{netmask}\'";
-    my $net = NetAddr::IP->new($if_r->{ip}, $if_r->{netmask});
+    my $net = NetAddr::IP::Lite->new($if_r->{ip}, $if_r->{netmask});
     uci "set network.$_.gateway=\'$hostparam{gateway}\'" if ($gw && $net && $gw->within($net));
     uci "set network.$_.ipv6=0";
   }
@@ -476,7 +476,7 @@ task "conf_net", sub {
     uci "set network.$_.proto=\'static\'";
     uci "set network.$_.ipaddr=\'$if_r->{ip}\'";
     uci "set network.$_.netmask=\'$if_r->{netmask}\'";
-    my $net = NetAddr::IP->new($if_r->{ip}, $if_r->{netmask});
+    my $net = NetAddr::IP::Lite->new($if_r->{ip}, $if_r->{netmask});
     uci "set network.$_.gateway=\'$hostparam{gateway}\'" if ($gw && $net && $gw->within($net));
     uci "set network.$_.ipv6=0";
   }
@@ -701,7 +701,7 @@ task "conf_tinc", sub {
     mode => 755,
     ensure => "directory";
 
-  my $int_addr = NetAddr::IP->new($hostparam{tun_int_ip}, $hostparam{tun_int_netmask}) or
+  my $int_addr = NetAddr::IP::Lite->new($hostparam{tun_int_ip}, $hostparam{tun_int_netmask}) or
     die "Invalid vpn tunnel interface address or mask!\n";
   file "/etc/tinc/$def_net/tinc-up",
     owner => "ural",
@@ -848,7 +848,7 @@ task "conf_fw", sub {
   uci "add firewall include";
   uci "set firewall.\@include[-1].path=\'/etc/firewall.user\'";
 
-  uci "show firewall";
+  #uci "show firewall";
   uci "commit firewall";
   insert_autogen_comment '/etc/config/firewall';
 
@@ -860,7 +860,7 @@ task "conf_fw", sub {
     content => template("files/firewall.user.0.tpl");
 
   # append hacks to firewall.user
-  for (qw/pf_interfaces_names pf_rsyslog_forwarding pf_clients_forwarding pf_internet_r2d2 pf_snat_config pf_dnat_config pf_internet_forwarding/) {
+  for (qw/pf_interfaces_names pf_input_ipsec pf_rsyslog_forwarding pf_clients_forwarding pf_internet_r2d2 pf_snat_config pf_dnat_config pf_internet_forwarding/) {
     my $h = $hosthacks{$_};
     append_if_no_such_line($firewall_user_file,
       line => $h,
