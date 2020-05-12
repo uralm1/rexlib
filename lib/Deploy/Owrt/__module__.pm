@@ -436,6 +436,14 @@ task "conf_system", sub {
   uci "commit system";
   insert_autogen_comment '/etc/config/system';
 
+  # tune sysctl
+  file "/etc/sysctl.conf",
+    owner => "ural",
+    group => "root",
+    mode => 644,
+    content => template('files/sysctl.conf.0.tpl'),
+    on_change => sub { say "sysctl parameters configured." };
+
   say "System configuration finished for $hostparam{host}";
 };
 

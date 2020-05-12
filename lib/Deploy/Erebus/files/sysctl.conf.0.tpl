@@ -1,0 +1,21 @@
+# Defaults are configured in /etc/sysctl.d/* and can be customized in this file
+net.ipv4.ip_local_port_range=8192 65535
+net.netfilter.nf_conntrack_max=1048576
+net.netfilter.nf_conntrack_generic_timeout=300
+net.netfilter.nf_conntrack_tcp_timeout_syn_sent=60
+net.netfilter.nf_conntrack_tcp_timeout_syn_recv=60
+net.netfilter.nf_conntrack_tcp_timeout_established=1200
+net.netfilter.nf_conntrack_tcp_timeout_fin_wait=60
+net.netfilter.nf_conntrack_tcp_timeout_close_wait=60
+net.netfilter.nf_conntrack_tcp_timeout_last_ack=30
+net.netfilter.nf_conntrack_tcp_timeout_time_wait=120
+net.netfilter.nf_conntrack_tcp_timeout_close=10
+net.netfilter.nf_conntrack_tcp_timeout_max_retrans=300
+net.netfilter.nf_conntrack_tcp_timeout_unacknowledged=300
+net.netfilter.nf_conntrack_udp_timeout=30
+net.netfilter.nf_conntrack_udp_timeout_stream=60
+net.netfilter.nf_conntrack_icmp_timeout=30
+net.netfilter.nf_conntrack_icmpv6_timeout=30
+net.netfilter.nf_conntrack_checksum=0
+net.ipv4.conf.all.send_redirects=0
+net.ipv4.conf.all.accept_redirects=0

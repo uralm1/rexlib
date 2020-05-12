@@ -1,7 +1,7 @@
 package Deploy::Erebus;
 
 use Rex -feature=>['1.4'];
-#use Rex::Commands::Cron;
+use Rex::Commands::Cron;
 use Data::Dumper;
 use File::Basename;
 use DBI;
@@ -354,11 +354,11 @@ task "deploy_router", sub {
   say "Department: $hostparam{dept_name}\n" if $hostparam{dept_name};
   #Deploy::Erebus::conf_software();
   #sleep 1;
-  #Deploy::Erebus::conf_system();
+  Deploy::Erebus::conf_system();
   #sleep 1;
   #Deploy::Erebus::conf_net();
   #sleep 1;
-  Deploy::Erebus::conf_fw();
+  #Deploy::Erebus::conf_fw();
   #sleep 1;
   #Deploy::Erebus::conf_ipsec();
   #sleep 1;
@@ -390,7 +390,8 @@ task "conf_software", sub {
   say "Updating package database.";
   update_package_db;
   say "Installing / updating packages.";
-  for (qw/ip-full tc iperf3 irqbalance ethtool lm-sensors lm-sensors-detect
+  for (qw/ip-full tc conntrack kmod-sched
+    iperf3 irqbalance ethtool lm-sensors lm-sensors-detect
     strongswan-default tinc snmpd snmp-utils
     perl perlbase-encode perl-dbi perl-dbd-mysql perl-netaddr-ip perl-sys-runalone libmariadb/) {
     pkg $_, ensure => latest,
@@ -451,6 +452,14 @@ task "conf_system", sub {
   #uci "show system";
   uci "commit system";
   insert_autogen_comment '/etc/config/system';
+
+  # tune sysctl
+  file "/etc/sysctl.conf",
+    owner => "ural",
+    group => "root",
+    mode => 644,
+    content => template('files/sysctl.conf.0.tpl'),
+    on_change => sub { say "sysctl parameters configured." };
 
   say "System configuration finished for $hostparam{host}";
 };
@@ -948,6 +957,9 @@ task "conf_fw", sub {
   uci "add firewall include";
   uci "set firewall.\@include[-1].path=\'/etc/firewall.user\'";
 
+  uci "add firewall include";
+  uci "set firewall.\@include[-1].path=\'/etc/tc.user\'";
+
   #uci "show firewall";
   uci "commit firewall";
   insert_autogen_comment '/etc/config/firewall';
@@ -966,6 +978,24 @@ task "conf_fw", sub {
       line => $h,
       on_change => sub {
 	say "Hack $_ was added to /etc/firewall.user.";
+      }
+    ) if $h;
+  }
+
+  my $tc_user_file = '/etc/tc.user';
+  file $tc_user_file,
+    owner => "ural",
+    group => "root",
+    mode => 644,
+    content => template("files/tc.user.0.tpl");
+
+  # append hacks to tc.user
+  for (qw/tc_lan_config tc_wan_config/) {
+    my $h = $hosthacks{$_};
+    append_if_no_such_line($tc_user_file,
+      line => $h,
+      on_change => sub {
+	say "Hack $_ was added to /etc/tc.user.";
       }
     ) if $h;
   }
@@ -1007,6 +1037,11 @@ task "conf_r2d2", sub {
     mode => 755,
     source => "files/r2d2/print_rules",
     on_change => sub { say "print_rules installed." };
+
+  host_entry 'bikini.uwc.local',
+    ensure => 'present',
+    ip => '10.15.0.3',
+    on_change => sub { say "Control server address added to /etc/hosts." };
 
   cron_entry 'rtsyn',
     ensure => 'present',
