@@ -5,13 +5,13 @@
 
 use strict;
 use warnings;
-
-#use FindBin;
+use FindBin;
 #use lib $FindBin::Bin;
-
 use DBI;
 use NetAddr::IP::Lite;
 use Encode;
+#use Data::Dumper;
+use v5.12;
 
 # this looks kinda experimental
 use Sys::RunAlone;
@@ -19,11 +19,14 @@ use Sys::RunAlone;
 my $agent_name = 'rtsyn';
 my $version = 'r2d2.rtsyn damaged brain v1.4';
 
-# configure credentials here
-my $dbhost = 'bikini.uwc.local';
-my $dbdb = 'inet';
-my $dbuser = 'fw';
-my $dbpass = 'fw900zf';
+my $cfg;
+{ # slurp config
+  open my $fh, '<', "$FindBin::Bin/r2d2.conf" or die "Can't read config file!\n";
+  local $/ = undef;
+  $cfg = eval <$fh>;
+  close $fh;
+}
+die "Error found in config file.\n" if (!$cfg or ref($cfg) ne 'HASH');
 
 my $client_out_chain = 'pipe_out_inet_clients'; # mangle chain name
 my $ruledir = '/var/r2d2';
@@ -43,8 +46,8 @@ unless (-e $ruledir or mkdir $ruledir) {
 my $no_rulefile;
 $no_rulefile = 1 unless (-e $rulefile);
 
-my $dbh_inet = DBI->connect("DBI:mysql:database=$dbdb;host=$dbhost", $dbuser, $dbpass) or
-  die "Connection to database $dbdb failed!\n";
+my $dbh_inet = DBI->connect("DBI:mysql:database=$cfg->{db};host=$cfg->{dbhost}", $cfg->{dbuser}, $cfg->{dbpass}) or
+  die "Connection to database $cfg->{db} failed!\n";
 
 $dbh_inet->do("SET NAMES 'UTF8'");
 

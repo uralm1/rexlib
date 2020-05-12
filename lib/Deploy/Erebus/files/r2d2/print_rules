@@ -4,6 +4,7 @@
 #iptables --line-numbers -nvL testchain_in
 #iptables --line-numbers -nvL testchain_out
 #iptables --line-numbers -t mangle -nvL testchain_in
+#iptables --line-numbers -t mangle -nvL testchain_out
 # erebus
 #iptables --line-numbers -t mangle -nvL testchain_out
 
@@ -11,5 +12,6 @@
 #iptables --line-numbers -nvL pipe_in_inet_clients
 #iptables --line-numbers -nvL pipe_out_inet_clients
 #iptables --line-numbers -t mangle -nvL pipe_in_inet_clients
+#iptables --line-numbers -t mangle -nvL pipe_out_inet_clients
 # erebus
 iptables --line-numbers -t mangle -nvL pipe_out_inet_clients

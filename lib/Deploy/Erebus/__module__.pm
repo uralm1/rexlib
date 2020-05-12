@@ -1026,19 +1026,21 @@ task "conf_r2d2", sub {
     mode => 755,
     ensure => "directory";
 
-  file '/etc/r2d2/rtsyn',
-    owner => "ural",
-    group => "root",
-    mode => 755,
-    source => "files/r2d2/rtsyn",
-    on_change => sub { say "rtsyn installed." };
+  for (qw/rtsyn print_rules/) {
+    file "/etc/r2d2/$_",
+      owner => "ural",
+      group => "root",
+      mode => 755,
+      source => "files/r2d2/$_",
+      on_change => sub { say "$_ installed." };
+  }
 
-  file '/etc/r2d2/print_rules',
+  file '/etc/r2d2/r2d2.conf',
     owner => "ural",
     group => "root",
-    mode => 755,
-    source => "files/r2d2/print_rules",
-    on_change => sub { say "print_rules installed." };
+    mode => 644,
+    source => "files/r2d2/r2d2.conf",
+    on_change => sub { say "r2d2.conf installed." };
 
   host_entry 'bikini.uwc.local',
     ensure => 'present',
