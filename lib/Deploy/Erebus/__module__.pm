@@ -395,7 +395,8 @@ task "conf_software", sub {
   for (qw/ip-full tc conntrack kmod-sched
     iperf3 irqbalance ethtool lm-sensors lm-sensors-detect
     strongswan-default tinc snmpd snmp-utils
-    perl perlbase-encode perl-dbi perl-dbd-mysql perl-netaddr-ip perl-sys-runalone libmariadb/) {
+    perl perlbase-encode perlbase-findbin perl-dbi perl-dbd-mysql perl-netaddr-ip perl-sys-runalone
+    libmariadb/) {
     pkg $_, ensure => latest,
       on_change => sub { say "package $_ was installed." };
   }
@@ -1016,7 +1017,7 @@ task "conf_r2d2", sub {
 
   say "R2d2 configuration started for $hostparam{host}";
 
-  for (qw/perl perlbase-encode perl-dbi perl-dbd-mysql perl-netaddr-ip perl-sys-runalone libmariadb/) {
+  for (qw/perl perlbase-encode perlbase-findbin perl-dbi perl-dbd-mysql perl-netaddr-ip perl-sys-runalone libmariadb/) {
     pkg $_, ensure => "present";
   }
 
