@@ -354,7 +354,7 @@ task "deploy_router", sub {
   say "Department: $hostparam{dept_name}\n" if $hostparam{dept_name};
   #Deploy::Erebus::conf_software();
   #sleep 1;
-  Deploy::Erebus::conf_system();
+  #Deploy::Erebus::conf_system();
   #sleep 1;
   #Deploy::Erebus::conf_net();
   #sleep 1;
@@ -365,6 +365,8 @@ task "deploy_router", sub {
   #Deploy::Erebus::conf_tinc();
   #sleep 1;
   #Deploy::Erebus::conf_r2d2();
+  #sleep 1;
+  Deploy::Erebus::conf_snmp();
   sleep 1;
   say "Router deployment/Erebus/ finished for $hostparam{host}";
   say "!!! Reboot router manually to apply changes !!!";
@@ -1061,6 +1063,29 @@ task "conf_r2d2", sub {
   append_if_no_such_line '/etc/rc.local', 'exit 0';
 
   say "R2d2 configuration finished for $hostparam{host}";
+};
+
+
+desc "Erebus router: Configure snmp";
+# if --confhost=erebus parameter is specified, host configuration is read
+# from the database, otherwise uses current
+task "conf_snmp", sub {
+  my $ch = shift->{confhost};
+  read_db $ch if $ch;
+  check_par;
+
+  say "Snmp configuration started for $hostparam{host}";
+
+  pkg 'snmpd', ensure => 'present';
+
+  file "/etc/config/snmpd",
+    owner => "ural",
+    group => "root",
+    mode => 644,
+    content => template('files/snmpd.0.tpl', _hostname=>$hostparam{host}),
+    on_change => sub { say "/etc/config/snmpd installed." };
+
+  say "Snmp configuration finished for $hostparam{host}";
 };
 
 
