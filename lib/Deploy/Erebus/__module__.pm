@@ -352,22 +352,21 @@ task "deploy_router", sub {
   say "Router manufacturer from database: $hostparam{manufacturer}" if $hostparam{manufacturer};
   say "Router type from database: $hostparam{eq_name}" if $hostparam{eq_name};
   say "Department: $hostparam{dept_name}\n" if $hostparam{dept_name};
-  #Deploy::Erebus::conf_software();
-  #sleep 1;
-  #Deploy::Erebus::conf_system();
-  #sleep 1;
-  #Deploy::Erebus::conf_net();
-  #sleep 1;
-  #Deploy::Erebus::conf_fw();
-  #sleep 1;
-  #Deploy::Erebus::conf_ipsec();
-  #sleep 1;
-  #Deploy::Erebus::conf_tinc();
-  #sleep 1;
-  #Deploy::Erebus::conf_r2d2();
-  #sleep 1;
-  Deploy::Erebus::conf_snmp();
+  Deploy::Erebus::conf_software();
   sleep 1;
+  Deploy::Erebus::conf_system();
+  sleep 1;
+  Deploy::Erebus::conf_net();
+  sleep 1;
+  Deploy::Erebus::conf_fw();
+  sleep 1;
+  Deploy::Erebus::conf_ipsec();
+  sleep 1;
+  Deploy::Erebus::conf_tinc();
+  sleep 1;
+  Deploy::Erebus::conf_r2d2();
+  sleep 1;
+  Deploy::Erebus::conf_snmp();
   say "Router deployment/Erebus/ finished for $hostparam{host}";
   say "!!! Reboot router manually to apply changes !!!";
 };
@@ -396,7 +395,7 @@ task "conf_software", sub {
     iperf3 irqbalance ethtool lm-sensors lm-sensors-detect
     strongswan-default tinc snmpd snmp-utils
     perl perlbase-encode perlbase-findbin perl-dbi perl-dbd-mysql perl-netaddr-ip perl-sys-runalone
-    libmariadb/) {
+    libmariadb openssh-client/) {
     pkg $_, ensure => latest,
       on_change => sub { say "package $_ was installed." };
   }
