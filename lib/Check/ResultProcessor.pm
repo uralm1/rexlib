@@ -63,11 +63,11 @@ sub email {
       To => $rep_to,
       #From => $f2,
       #Subject => $subj,
-      #'MIME-Version' => '1.0',
+      'MIME-Version' => '1.0',
       'Content-Type' => 'text/plain; charset=UTF-8',
-      #'Content-Transfer-Encoding' => 'quoted-printable',
+      'Content-Transfer-Encoding' => '8bit',
     ],
-    body => $self->{buffer},
+    body => decode_utf8($self->{buffer}),
   );
   $email->header_set('From', $f2);
   $email->header_set('Subject', $subj);
@@ -106,11 +106,11 @@ sub make_ticket {
       To => $self->{mail_ticket_to},
       #From => $ticket_from,
       #Subject => $subj1,
-      #'MIME-Version' => '1.0',
+      'MIME-Version' => '1.0',
       'Content-Type' => 'text/plain; charset=UTF-8',
-      #'Content-Transfer-Encoding' => 'quoted-printable',
+      'Content-Transfer-Encoding' => '8bit',
     ],
-    body => 'Неисправность: '.$subj."\n\nПо заявке проведена автоматическая диагностика неисправности. Результаты.\n".$self->{buffer},
+    body => decode_utf8('Неисправность: '.$subj."\n\nПо заявке проведена автоматическая диагностика неисправности. Результаты.\n".$self->{buffer}),
   );
   $email->header_set('From', $ticket_from);
   $email->header_set('Subject', $subj1);
