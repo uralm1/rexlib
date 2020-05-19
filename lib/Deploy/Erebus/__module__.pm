@@ -22,6 +22,7 @@ my %hostparam = (
   wan_ifs => {ifname=>{ip=>'',netmask=>'',vlan=>'',alias=>0, 
     routes=>[{name=>'',type=>1,gateway=>'',target=>'',netmask=>'',table=>''},],
     dhcp_on=>0,dhcp_start=>0,dhcp_limit=>0,dhcp_leasetime=>'',dhcp_dns=>'',dhcp_dns_suffix=>'',dhcp_wins=>'',
+    dhcp_static_leases=>[{name=>'',mac=>'',ip=>''},],
   },},
   lan_ifs => {},
   tun_node_name => '',
@@ -92,11 +93,14 @@ WHERE host_name = ?", {}, $_host);
     $i++;
   }
   $hostparam{lan_routes} = \@rres;
+  delete $hostparam{lan_routes_unparsed};
 =cut
   # parse dns_list
   $hostparam{dns} = [split /,/, $hostparam{dns_unparsed}];
+  delete $hostparam{dns_unparsed};
   # parse ssh_icmp_from_wans_ips
   $hostparam{ssh_icmp_from_wans_ips} = [split /,/, $hostparam{ssh_icmp_from_wans_ips_unparsed}];
+  delete $hostparam{ssh_icmp_from_wans_ips_unparsed};
 
   # read vpn parameters
   $hr = $dbh->selectrow_hashref("SELECT \
@@ -180,7 +184,8 @@ nets.dhcp_limit AS dhcp_limit, \
 nets.dhcp_leasetime AS dhcp_leasetime, \
 nets.dhcp_dns AS dhcp_dns, \
 nets.dhcp_dns_suffix AS dhcp_dns_suffix, \
-nets.dhcp_wins AS dhcp_wins \
+nets.dhcp_wins AS dhcp_wins, \
+nets.dhcp_static_leases AS dhcp_static_leases_unparsed \
 FROM interfaces i \
 INNER JOIN nets ON net_id = nets.id \
 WHERE type = ? AND router_id = ?", {Slice=>{}, MaxRows=>10}, $if_type, $router_id);
@@ -235,6 +240,20 @@ WHERE net_src_id = ?", {Slice=>{}, MaxRows=>500}, $_->{net_src_id});
       if ($ifs_href->{$if_name}{dhcp_start} =~ /^(?:[0-9]{1,3}\.){3}([0-9]{1,3})$/) {
 	$ifs_href->{$if_name}{dhcp_start} = $1;
       }
+      # parse dhcp_static_leases
+      my @rres;
+      foreach (split /;/, $ifs_href->{$if_name}{dhcp_static_leases_unparsed}) {
+	my @cr = split /,/, $_;
+	if ($cr[0] and
+	  $cr[1] =~ /^(?:[0-9a-fA-F]{1,2}\:){5}[0-9a-fA-F]{1,2}$/ and
+	  $cr[2] =~ /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/) {
+	    push @rres, {name => "${if_name}_".lc($cr[0]), mac => $cr[1], ip => $cr[2]};
+	} else {
+	  say "WARNING: invalid dhcp static lease: $cr[0] on interface $if_name ignored.";
+	}
+      }
+      $ifs_href->{$if_name}{dhcp_static_leases} = \@rres;
+      delete $ifs_href->{$if_name}{dhcp_static_leases_unparsed};
     } # for aliases
   } # for vlans
 }
@@ -628,11 +647,19 @@ task "conf_net", sub {
     }
   }
   quci "delete dhcp.\@host[-1]" foreach 0..9;
-  # static leases TODO
-  #uci "add dhcp host";
-  #uci "set dhcp.\@host[-1].ip=\'192.168.33.82\'";
-  #uci "set dhcp.\@host[-1].mac=\'00:11:22:33:44:55\'";
-  #uci "set dhcp.\@host[-1].name=\'host1\'";
+  # static leases
+  for my $ifs_r ($hostparam{lan_ifs}, $hostparam{wan_ifs}) {
+    for (sort keys %$ifs_r) {
+      if ($ifs_r->{$_}{dhcp_on} > 0) {
+        for my $l (@{$ifs_r->{$_}{dhcp_static_leases}}) {
+	  uci "add dhcp host";
+	  uci "set dhcp.\@host[-1].ip=\'$l->{ip}\'";
+	  uci "set dhcp.\@host[-1].mac=\'$l->{mac}\'";
+	  uci "set dhcp.\@host[-1].name=\'$l->{name}\'";
+        }
+      }
+    }
+  }
 
   say "DHCP and DNS configured.";
 

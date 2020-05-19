@@ -31,6 +31,7 @@ my %hostparam = (
   dhcp_dns => '',
   dhcp_dns_suffix => '',
   dhcp_wins => '',
+  dhcp_static_leases => [{name=>'',mac=>'',ip=>''},],
   tun_node_name => '',
   tun_node_ip => '',
   tun_subnet => '',
@@ -117,7 +118,8 @@ ln.dhcp_limit AS dhcp_limit, \
 ln.dhcp_leasetime AS dhcp_leasetime, \
 ln.dhcp_dns AS dhcp_dns, \
 ln.dhcp_dns_suffix AS dhcp_dns_suffix, \
-ln.dhcp_wins AS dhcp_wins \
+ln.dhcp_wins AS dhcp_wins, \
+ln.dhcp_static_leases AS dhcp_static_leases_unparsed \
 FROM routers \
 INNER JOIN interfaces wans ON wans.router_id = routers.id AND wans.type = 1 \
 INNER JOIN nets wn ON wn.id = wans.net_id \
@@ -131,23 +133,39 @@ WHERE host_name = ?", {}, $_host);
 
   %hostparam = %$hr;
   # parse routes
-  my @ra = split /;/, $hostparam{lan_routes_unparsed};
   my @rres;
   my $i = 1;
-  foreach (@ra) {
+  foreach (split /;/, $hostparam{lan_routes_unparsed}) {
     my @cr = split /,/, $_;
     push @rres, {name => 'l_'.$i, target => $cr[0], netmask => $cr[1], gateway => $cr[2]};
     $i++;
   }
   $hostparam{lan_routes} = \@rres;
+  delete $hostparam{lan_routes_unparsed};
   # parse dns_list
   $hostparam{dns} = [split /,/, $hostparam{dns_unparsed}];
+  delete $hostparam{dns_unparsed};
   # parse dhcp_start
   if ($hostparam{dhcp_start} =~ /^(?:[0-9]{1,3}\.){3}([0-9]{1,3})$/) {
     $hostparam{dhcp_start} = $1;
   }
   # parse ssh_icmp_from_wans_ips
   $hostparam{ssh_icmp_from_wans_ips} = [split /,/, $hostparam{ssh_icmp_from_wans_ips_unparsed}];
+  delete $hostparam{ssh_icmp_from_wans_ips_unparsed};
+  # parse dhcp_static_leases
+  my @rres1;
+  foreach (split /;/, $hostparam{dhcp_static_leases_unparsed}) {
+    my @cr = split /,/, $_;
+    if ($cr[0] and
+      $cr[1] =~ /^(?:[0-9a-fA-F]{1,2}\:){5}[0-9a-fA-F]{1,2}$/ and
+      $cr[2] =~ /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/) {
+        push @rres1, {name => 'lan_'.lc($cr[0]), mac => $cr[1], ip => $cr[2]};
+    } else {
+      say "WARNING: invalid dhcp static lease: $cr[0] on lan interface ignored.";
+    }
+  }
+  $hostparam{dhcp_static_leases} = \@rres1;
+  delete $hostparam{dhcp_static_leases_unparsed};
 
   # read vpn parameters
   $hr = $dbh->selectrow_hashref("SELECT \
@@ -543,7 +561,7 @@ task "conf_net", sub {
 
   uci "set dhcp.lan.start=\'$hostparam{dhcp_start}\'";
   uci "set dhcp.lan.limit=\'$hostparam{dhcp_limit}\'";
-  uci "set dhcp.lan.leasetime=\'$hostparam{dhcp_limit}\'";
+  uci "set dhcp.lan.leasetime=\'$hostparam{dhcp_leasetime}\'";
   # disable dhcp at all
   uci "set dhcp.lan.ignore=".(($hostparam{dhcp_on} > 0)?0:1);
   # only allow static leases
@@ -560,11 +578,13 @@ task "conf_net", sub {
   uci "add_list dhcp.lan.dhcp_option=\'46,8\'";
 
   quci "delete dhcp.\@host[-1]" foreach 0..9;
-  # static leases TODO
-  #uci "add dhcp host";
-  #uci "set dhcp.\@host[-1].ip=\'192.168.33.82\'";
-  #uci "set dhcp.\@host[-1].mac=\'00:11:22:33:44:55\'";
-  #uci "set dhcp.\@host[-1].name=\'host1\'";
+  # static leases
+  for (@{$hostparam{dhcp_static_leases}}) {
+    uci "add dhcp host";
+    uci "set dhcp.\@host[-1].ip=\'$_->{ip}\'";
+    uci "set dhcp.\@host[-1].mac=\'$_->{mac}\'";
+    uci "set dhcp.\@host[-1].name=\'$_->{name}\'";
+  }
   say "DHCP and DNS configured.";
 
   #uci "show network";
@@ -943,7 +963,9 @@ task "reload_tinc", sub {
 
 ##################################
 task "_t", sub {
-  read_db 'gwsouth2';
+  #read_db 'gwsouth2';
+  read_db 'gwtest1';
+  say Dumper \%hostparam;
   check_par;
 
   #my @outgoing_rules_ip_list;
