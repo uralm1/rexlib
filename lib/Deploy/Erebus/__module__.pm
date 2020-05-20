@@ -860,14 +860,6 @@ task "conf_fw", sub {
     uci "set firewall.\@rule[-1].src_ip=\'$_\'";
     uci "set firewall.\@rule[-1].dest_port=22";
     uci "set firewall.\@rule[-1].target=ACCEPT";
-    # ssh-wan-out-xxx
-    uci "add firewall rule";
-    #uci "set firewall.\@rule[-1].name=\'ssh-wan-out-$_\'";
-    uci "set firewall.\@rule[-1].dest=wan";
-    uci "set firewall.\@rule[-1].proto=tcp";
-    uci "set firewall.\@rule[-1].dest_ip=\'$_\'";
-    uci "set firewall.\@rule[-1].src_port=22";
-    uci "set firewall.\@rule[-1].target=ACCEPT";
   }
 
   # icmp-wan-in-limit
@@ -876,7 +868,7 @@ task "conf_fw", sub {
   uci "set firewall.\@rule[-1].src=wan";
   uci "set firewall.\@rule[-1].proto=icmp";
   uci "add_list firewall.\@rule[-1].icmp_type=$_" foreach (0,3,4,8,11,12);
-  uci "set firewall.\@rule[-1].limit=\'20/sec\'";
+  uci "set firewall.\@rule[-1].limit=\'10/sec\'";
   uci "set firewall.\@rule[-1].target=ACCEPT";
 
   # icmp-wan-out
@@ -884,6 +876,14 @@ task "conf_fw", sub {
   #uci "set firewall.\@rule[-1].name=icmp-wan-out";
   uci "set firewall.\@rule[-1].dest=wan";
   uci "set firewall.\@rule[-1].proto=icmp";
+  uci "set firewall.\@rule[-1].target=ACCEPT";
+
+  # ssh-wan-out
+  uci "add firewall rule";
+  #uci "set firewall.\@rule[-1].name=ssh-wan-out";
+  uci "set firewall.\@rule[-1].dest=wan";
+  uci "set firewall.\@rule[-1].proto=tcp";
+  uci "set firewall.\@rule[-1].dest_port=22";
   uci "set firewall.\@rule[-1].target=ACCEPT";
 
   # syslog-wan/lan-out
@@ -896,15 +896,6 @@ task "conf_fw", sub {
     uci "set firewall.\@rule[-1].dest_port=514";
     uci "set firewall.\@rule[-1].target=ACCEPT";
   }
-
-  # ntp-lan-in
-  uci "add firewall rule";
-  #uci "set firewall.\@rule[-1].name=ntp-lan-in";
-  uci "set firewall.\@rule[-1].src=lan";
-  uci "set firewall.\@rule[-1].proto=udp";
-  uci "set firewall.\@rule[-1].src_ip=\'$hostparam{ntp_ip}\'";
-  uci "set firewall.\@rule[-1].src_port=123";
-  uci "set firewall.\@rule[-1].target=ACCEPT";
 
   # ntp-lan-out
   uci "add firewall rule";
@@ -923,12 +914,13 @@ task "conf_fw", sub {
   uci "set firewall.\@rule[-1].dest_port=161";
   uci "set firewall.\@rule[-1].target=ACCEPT";
 
-  # snmp-lan-out
+  # opkg-lan-out
   uci "add firewall rule";
-  #uci "set firewall.\@rule[-1].name=snmp-lan-out";
+  #uci "set firewall.\@rule[-1].name=opkg-lan-out";
   uci "set firewall.\@rule[-1].dest=lan";
-  uci "set firewall.\@rule[-1].proto=udp";
-  uci "set firewall.\@rule[-1].src_port=161";
+  uci "set firewall.\@rule[-1].dest_ip=\'10.15.0.3\'";
+  uci "set firewall.\@rule[-1].proto=tcp";
+  uci "set firewall.\@rule[-1].dest_port=80";
   uci "set firewall.\@rule[-1].target=ACCEPT";
 
   #####
@@ -1001,7 +993,9 @@ task "conf_fw", sub {
     content => template("files/firewall.user.0.tpl");
 
   # append hacks to firewall.user
-  for (qw/pf_interfaces_names pf_input_ipsec pf_rsyslog_forwarding pf_clients_forwarding pf_internet_r2d2 pf_snat_config pf_dnat_config pf_internet_forwarding/) {
+  for (qw/pf_interfaces_names pf_input_ipsec pf_rsyslog_forwarding pf_admin_access_des
+    pf_clients_forwarding pf_internet_r2d2
+    pf_snat_config pf_dnat_config pf_internet_forwarding/) {
     my $h = $hosthacks{$_};
     append_if_no_such_line($firewall_user_file,
       line => $h,
