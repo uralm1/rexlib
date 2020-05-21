@@ -19,12 +19,23 @@ task "list_vm", sub {
   check_os();
   my $_s = connection->server;
   #print Dumper vm list => 'all', fancy=>1;#, format=>'name,ram';
-  say "Virtual machines on host server $_s:";
-  my $v = run "lxc-ls -f";
-  if ($? != 0) {
-    die "Operation error possible caused by invalid command parameter.\n";
+  if (can_run('docker')) {
+    say "Docker containers on host server $_s:";
+    my $v = run "docker ps -a";
+    die "Operation error possible caused by invalid command parameter.\n" unless $? == 0;
+    say $v."\n";
+  } else {
+    say "No Docker virtualization on host server $_s.\n";
   }
-  say $v."\n";
+
+  if (can_run('lxc-ls')) {
+    say "LXC Virtual machines on host server $_s:";
+    my $v = run "lxc-ls -f";
+    die "Operation error possible caused by invalid command parameter.\n" unless $? == 0;
+    say $v."\n";
+  } else {
+    say "No LXC virtualization on host server $_s.";
+  }
 };
 
 
