@@ -3,9 +3,10 @@
 config ipsec
   option debug 0
   #option install_routes 1
+  option install_virtual_ip 0
   option routing_table 30000
   option routing_table_prio 30000
-  #list ignore_routing_tables 1000
+  list ignore_routing_tables r_beeline
   #list interface wan
 
 #config remote 'testgateway'
@@ -26,7 +27,7 @@ config ipsec
 #  #option dpddelay '30s'
 #  option keyexchange 'ikev1'
 #  option compress 1
-#  list crypto_proposal 'tetgateway_prop'
+#  list crypto_proposal 'testgateway_prop'
 #
 # use same proposals for p1 and p2
 #config p1_proposal 'testgateway_prop'

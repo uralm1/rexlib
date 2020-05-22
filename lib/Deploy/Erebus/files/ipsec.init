@@ -142,6 +142,7 @@ config_conn() {
 	local keyexchange
 	local reqid
         local compress
+	local left
 
 	config_get mode                     "$1"           mode "route"
 	config_get local_subnet             "$1"           local_subnet ""
@@ -165,9 +166,10 @@ config_conn() {
 	config_get_bool compress            "$1"           compress 0
 
 	[ -n "$local_nat" ] && local_subnet=$local_nat
+	[ -n "$local_gateway" ] && left=$local_gateway || left="%any"
 
 	ipsec_xappend "conn $config_name-$1"
-	ipsec_xappend "  left=%any"
+	ipsec_xappend "  left=$left"
 	ipsec_xappend "  right=$remote_gateway"
 
 	[ -n "$local_sourceip" ] && ipsec_xappend "  leftsourceip=$local_sourceip"
@@ -227,6 +229,7 @@ config_transport() {
 config_remote() {
 	local enabled
 	local gateway
+	local local_gateway_sec
 	local pre_shared_key
 	local auth_method
 
@@ -236,6 +239,7 @@ config_remote() {
 	[ $enabled -eq 0 ] && return
 
 	config_get gateway           "$1" gateway
+	config_get local_gateway     "$1" local_gateway ""
 	config_get pre_shared_key    "$1" pre_shared_key
 	config_get auth_method       "$1" authentication_method
 	config_get local_identifier  "$1" local_identifier ""
@@ -247,10 +251,10 @@ config_remote() {
 		local ipdest
 
 		[ "$remote_gateway" = "%any" ] && ipdest="1.1.1.1" || ipdest="$remote_gateway"
-		local_gateway=$(ip route get $ipdest | sed 's/^.*src \([^ ]*\).*$/\1/;q')
+		[ -n "$local_gateway" ] && local_gateway_sec="$local_gateway" || local_gateway_sec=$(ip route get $ipdest | sed 's/^.*src \([^ ]*\).*$/\1/;q')
 	}
 
-	[ -n "$local_identifier" ] && secret_xappend -n "$local_identifier " || secret_xappend -n "$local_gateway "
+	[ -n "$local_identifier" ] && secret_xappend -n "$local_identifier " || secret_xappend -n "$local_gateway_sec "
 	[ -n "$remote_identifier" ] && secret_xappend -n "$remote_identifier " || secret_xappend -n "$remote_gateway "
 
 	secret_xappend ": PSK \"$pre_shared_key\""
@@ -275,6 +279,7 @@ config_ipsec() {
 	local device_list
         local routing_table_code
         local routing_table_prio
+	local install_virtual_ip_enabled
 
 	ipsec_reset
 	secret_reset
@@ -289,6 +294,8 @@ config_ipsec() {
 	config_get debug "$1" debug 0
 	config_get_bool install_routes_enabled "$1" install_routes 1
 	[ $install_routes_enabled -eq 1 ] && install_routes=yes || install_routes=no
+	config_get_bool install_virtual_ip_enabled "$1" install_virtual_ip 1
+	[ $install_virtual_ip_enabled -eq 1 ] && install_virtual_ip=yes || install_virtual_ip=no
 
 	config_get routing_table_code "$1" routing_table 220
 	config_get routing_table_prio "$1" routing_table_prio 220
@@ -319,6 +326,7 @@ config_ipsec() {
 	swan_xappend "charon {"
 	swan_xappend "  load_modular = yes"
 	swan_xappend "  install_routes = $install_routes"
+	swan_xappend "  install_virtual_ip = $install_virtual_ip"
 	swan_xappend "  routing_table = $routing_table_code"
 	swan_xappend "  routing_table_prio = $routing_table_prio"
 	[ -n "$routing_tables_ignored" ] && swan_xappend "  ignore_routing_tables = $routing_tables_ignored"
