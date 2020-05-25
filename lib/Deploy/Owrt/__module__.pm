@@ -23,7 +23,7 @@ my %hostparam = (
   auto_wan_routes => [{name=>'',target=>'',netmask=>'',gateway=>''},],
   lan_ip => '',
   lan_netmask => '',
-  lan_routes => [{name=>'',target=>'',netmask=>'',gateway=>''},],
+  lan_routes => [{name=>'',type=>1,target=>'',netmask=>'',gateway=>'',table=>''},],
   dhcp_on => 0,
   dhcp_start => 0,
   dhcp_limit => 0,
@@ -111,7 +111,8 @@ wans.ip AS wan_ip, \
 wn.mask AS wan_netmask, \
 lans.ip AS lan_ip, \
 ln.mask AS lan_netmask, \
-lans.routes AS lan_routes_unparsed, \
+lans.net_id AS lan_net_id, \
+ln.net_gw AS lan_net_gw, \
 lans.dhcp_on AS dhcp_on, \
 ln.dhcp_start_ip AS dhcp_start, \
 ln.dhcp_limit AS dhcp_limit, \
@@ -132,16 +133,37 @@ WHERE host_name = ?", {}, $_host);
   #say Dumper $hr;
 
   %hostparam = %$hr;
-  # parse routes
-  my @rres;
-  my $i = 1;
-  foreach (split /;/, $hostparam{lan_routes_unparsed}) {
-    my @cr = split /,/, $_;
-    push @rres, {name => 'l_'.$i, target => $cr[0], netmask => $cr[1], gateway => $cr[2]};
-    $i++;
+
+  # extract routes for lan interface
+  my $ar1 = $dbh->selectall_arrayref("SELECT \
+type AS type, \
+nets.net_ip AS target, \
+nets.mask AS netmask, \
+r_table AS 'table' \
+FROM routes \
+INNER JOIN nets ON net_dst_id = nets.id \
+WHERE net_src_id = ?", {Slice=>{}, MaxRows=>500}, $hostparam{lan_net_id});
+  die "Fetching routes database failure.\n" unless $ar1;
+  #say Dumper $ar1;
+
+  $hostparam{lan_routes} = [];
+  my $routeid = 1;
+  my $r_gateway = $hostparam{lan_net_gw};
+  for (@$ar1) {
+    my $r1 = {
+      name => "lan_route$routeid",
+      gateway => $r_gateway,
+      target => $_->{target},
+      netmask => $_->{netmask},
+      table => $_->{table},
+      type => $_->{type},
+    };
+    push @{$hostparam{lan_routes}}, $r1;
+    $routeid++;
   }
-  $hostparam{lan_routes} = \@rres;
-  delete $hostparam{lan_routes_unparsed};
+  delete $hostparam{lan_net_id};
+  delete $hostparam{lan_net_gw};
+
   # parse dns_list
   $hostparam{dns} = [split /,/, $hostparam{dns_unparsed}];
   delete $hostparam{dns_unparsed};
@@ -516,22 +538,28 @@ task "conf_net", sub {
 
   # lan routes
   foreach (@{$hostparam{lan_routes}}) {
-    my $rname = $_->{'name'};
-    uci "set network.$rname=\'route\'";
-    uci "set network.$rname.interface=\'lan\'";
-    uci "set network.$rname.target=\'$_->{target}\'";
-    uci "set network.$rname.netmask=\'$_->{netmask}\'";
-    uci "set network.$rname.gateway=\'$_->{gateway}\'";
+    my $t = $_->{'type'};
+    my $n = $_->{'name'};
+    if ($t == 1) { # 1 UNICAST
+      uci "set network.$n=route";
+      uci "set network.$n.interface=lan";
+      uci "set network.$n.target=\'$_->{target}\'";
+      uci "set network.$n.netmask=\'$_->{netmask}\'";
+      uci "set network.$n.gateway=\'$_->{gateway}\'";
+      #uci "set network.$n.table=$_->{table}" if $_->{table};
+    } else {
+      die "Unsupported route type: $t";
+    }
   }
 
   # auto wan routes
   foreach (@{$hostparam{auto_wan_routes}}) {
-    my $rname = $_->{'name'};
-    uci "set network.$rname=\'route\'";
-    uci "set network.$rname.interface=\'wan\'";
-    uci "set network.$rname.target=\'$_->{target}\'";
-    uci "set network.$rname.netmask=\'$_->{netmask}\'";
-    uci "set network.$rname.gateway=\'$_->{gateway}\'";
+    my $n = $_->{'name'};
+    uci "set network.$n=route";
+    uci "set network.$n.interface=wan";
+    uci "set network.$n.target=\'$_->{target}\'";
+    uci "set network.$n.netmask=\'$_->{netmask}\'";
+    uci "set network.$n.gateway=\'$_->{gateway}\'";
   }
   say "Network routes configured.";
 
@@ -963,8 +991,8 @@ task "reload_tinc", sub {
 
 ##################################
 task "_t", sub {
-  #read_db 'gwsouth2';
-  read_db 'gwtest1';
+  read_db 'gwsouth2';
+  #read_db 'gwtest1';
   say Dumper \%hostparam;
   check_par;
 

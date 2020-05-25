@@ -82,19 +82,6 @@ WHERE host_name = ?", {}, $_host);
   $hostparam{lan_ifs} = {};
   populate_interfaces($hostparam{lan_ifs}, 2, $hostparam{router_id});
 
-=for comment
-  # parse routes
-  my @ra = split /;/, $hostparam{lan_routes_unparsed};
-  my @rres;
-  my $i = 1;
-  foreach (@ra) {
-    my @cr = split /,/, $_;
-    push @rres, {name => 'l_'.$i, target => $cr[0], netmask => $cr[1], gateway => $cr[2]};
-    $i++;
-  }
-  $hostparam{lan_routes} = \@rres;
-  delete $hostparam{lan_routes_unparsed};
-=cut
   # parse dns_list
   $hostparam{dns} = [split /,/, $hostparam{dns_unparsed}];
   delete $hostparam{dns_unparsed};
