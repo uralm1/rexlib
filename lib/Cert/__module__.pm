@@ -40,7 +40,7 @@ task install => sub {
     run "$actl graceful";
     say "Apache graceful reload command sent.";
   } else {
-    say "Apache Web server restart failed. Check is manually.";
+    say "Apache Web server restart failed. Check it manually.";
   }
 
   say "Warning: On mail server you should restart smtp and imap manually.";

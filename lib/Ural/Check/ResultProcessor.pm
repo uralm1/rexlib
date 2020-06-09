@@ -1,4 +1,4 @@
-package Check::ResultProcessor;
+package Ural::Check::ResultProcessor;
 
 use strict;
 use warnings;

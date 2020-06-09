@@ -4,7 +4,7 @@ use Rex -feature => ['1.3'];
 use Data::Dumper;
 
 use DBI;
-use Check::ResultProcessor;
+use Ural::Check::ResultProcessor;
 
 sub nd {
   my $v = shift;
