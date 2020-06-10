@@ -13,7 +13,7 @@ isa_ok($p, 'Ural::Deploy::HostParam');
 is($p->get_host, 'testhost1', 'get_host() working');
 ok(!$p->is_owrt_format, 'not is_owrt_format()');
 
-ok($p->is_erebus_format, 'is_erebus_format()');
+is($p->get_version, '2', 'get_version()');
 
 diag explain $p;
 

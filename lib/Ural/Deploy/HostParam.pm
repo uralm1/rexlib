@@ -31,12 +31,12 @@ sub get_host {
   return shift->{host};
 }
 
-sub is_owrt_format {
-  return shift->{format_ver} == 1;
+sub get_version {
+  return shift->{format_ver};
 }
 
-sub is_erebus_format {
-  return shift->{format_ver} == 2;
+sub is_owrt_format {
+  return shift->{format_ver} eq '1';
 }
 
 
