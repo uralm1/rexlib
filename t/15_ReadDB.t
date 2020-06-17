@@ -9,8 +9,8 @@ use Ural::Deploy::ReadDB;
 dies_ok( sub { ReadDB() }, 'ReadDB() without host parameter');
 
 my $p = ReadDB('testhost1', format_ver => 999);
-$p = ReadDB('testhost1', format_ver => 999);
-$p = ReadDB('testhost1', format_ver => 999);
+$p = ReadDB('testhost1');
+$p = ReadDB('testhost1');
 
 isa_ok($p, 'Ural::Deploy::HostParam');
 diag explain $p;

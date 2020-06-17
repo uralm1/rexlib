@@ -16,7 +16,7 @@ config zone
 	option forward		DROP
 	option log 1
         # comment to debug
-	option log_limit '12/minute'
+	option log_limit '10/minute'
 
 config zone
 	option name		wan
@@ -30,7 +30,7 @@ config zone
 	#option mtu_fix		1
 	option log 1
         # comment to debug
-	option log_limit '12/minute'
+	option log_limit '5/minute'
 
 config zone
 	option name vpn
@@ -41,7 +41,7 @@ config zone
 	option forward		DROP
 	option log 1
         # comment to debug
-	option log_limit '12/minute'
+	option log_limit '10/minute'
 
 
 ### LAN ###

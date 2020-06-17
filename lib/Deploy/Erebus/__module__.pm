@@ -962,6 +962,15 @@ task "conf_fw", sub {
     uci "set firewall.\@rule[-1].target=ACCEPT";
   }
 
+  my @hacks_restore_list = qw/pf_input_ipsec pf_rsyslog_forwarding pf_admin_access_des pf_clients_forwarding/;
+
+  for (@hacks_restore_list) {
+    uci "add firewall include";
+    uci "set firewall.\@include[-1].type=restore";
+    uci "set firewall.\@include[-1].path=\'/etc/firewall.user_${_}\'";
+    uci "set firewall.\@include[-1].family=ipv4";
+  }
+
   uci "add firewall include";
   uci "set firewall.\@include[-1].path=\'/etc/firewall.user\'";
 
@@ -972,6 +981,20 @@ task "conf_fw", sub {
   uci "commit firewall";
   insert_autogen_comment '/etc/config/firewall';
 
+  # save iptables_restore hacks to firewall.user_xxx files
+  for (@hacks_restore_list) {
+    my $h = $hosthacks{$_};
+    file("/etc/firewall.user_$_",
+      owner => "ural",
+      group => "root",
+      mode => 644,
+      content => $h,
+      on_change => sub {
+	say "Hack $_ was added to /etc/firewall.user_$_.";
+      }
+    ) if $h;
+  }
+
   my $firewall_user_file = '/etc/firewall.user';
   file $firewall_user_file,
     owner => "ural",
@@ -980,9 +1003,10 @@ task "conf_fw", sub {
     content => template("files/firewall.user.0.tpl");
 
   # append hacks to firewall.user
-  for (qw/pf_interfaces_names pf_input_ipsec pf_rsyslog_forwarding pf_admin_access_des
-    pf_clients_forwarding pf_internet_r2d2
-    pf_snat_config pf_dnat_config pf_internet_forwarding/) {
+  ###for (qw/pf_interfaces_names pf_input_ipsec pf_rsyslog_forwarding pf_admin_access_des
+  ###  pf_clients_forwarding pf_internet_r2d2
+  for (qw/pf_interfaces_names pf_internet_r2d2
+    pf_snat_config pf_dnat_config pf_internet_forwarding pf_ban_in_logs/) {
     my $h = $hosthacks{$_};
     append_if_no_such_line($firewall_user_file,
       line => $h,

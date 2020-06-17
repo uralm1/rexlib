@@ -71,6 +71,31 @@ config view systemview2
 	option type included
 	option oid .1.3.6.1.2.1.25.1
 
+config view systemview3
+	option viewname systemview
+	option type included
+	option oid .1.3.6.1.4.1.2021.10.1
+
+config view systemview4
+	option viewname systemview
+	option type included
+	option oid .1.3.6.1.4.1.2021.11
+
+config view systemview5
+	option viewname systemview
+	option type included
+	option oid .1.3.6.1.4.1.2021.4
+
+config view systemview6
+	option viewname systemview
+	option type included
+	option oid .1.3.6.1.2.1.2.1
+
+config view systemview7
+	option viewname systemview
+	option type included
+	option oid .1.3.6.1.2.1.2.2
+
 config access public_access
 	option group public
 	option context none

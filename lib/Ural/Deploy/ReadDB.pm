@@ -7,6 +7,8 @@ use v5.12;
 
 use Carp;
 use Ural::Deploy::ReadDB_base;
+use Ural::Deploy::ReadDB_owrt;
+use Ural::Deploy::ReadDB_erebus;
 
 use Exporter qw(import);
 our @EXPORT = qw(ReadDB);
@@ -45,11 +47,9 @@ sub _read_uncached {
   if ($format_ver eq '999') {
     $p = Ural::Deploy::ReadDB_base->new()->read($host);
   } elsif ($format_ver eq '1') {
-    #
-    croak "FIXME Unsupported format: $format_ver.\n";
-  } elsif ($format_ver eq '0') {
-    #
-    croak "FIXME Unsupported format: $format_ver.\n";
+    $p = Ural::Deploy::ReadDB_owrt->new()->read($host);
+  } elsif ($format_ver eq '0' or $format_ver eq '2') {
+    $p = Ural::Deploy::ReadDB_erebus->new()->read($host);
   } else {
     croak "Unsupported format: $format_ver.\n";
   }
