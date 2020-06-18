@@ -972,7 +972,7 @@ task "conf_fw", sub {
     uci "set firewall.\@include[-1].family=ipv4";
   }
 
-  # r2d2 clients file
+  # include r2d2 clients file
   uci "add firewall include";
   uci "set firewall.\@include[-1].type=restore";
   uci "set firewall.\@include[-1].path=\'/var/r2d2/firewall.clients\'";
@@ -1127,6 +1127,55 @@ task "conf_snmp", sub {
   say "Snmp configuration finished for $hostparam{host}";
 };
 
+
+##################################
+desc "Erebus router: Test firewall hacks";
+task "test_firewall_hacks", sub {
+  read_db 'erebus';
+  check_par;
+
+  say "Firewall hacks test started for $hostparam{host}";
+  my $err = undef;
+
+  my @hacks_restore_list = qw/pf_input_ipsec pf_rsyslog_forwarding pf_admin_access_des
+    pf_clients_forwarding pf_internet_r2d2/;
+
+  for (@hacks_restore_list) {
+    say "* Testing hack: $_";
+    my $h = $hosthacks{$_};
+    if ($h) {
+      my $fn = '/tmp/testhack.tmp';
+      my $f = undef;
+      file($fn,
+	content => $h, 
+	on_change => sub { $f = 1 }
+      );
+      say "ERROR! Temporary file is not created! This is subject for detailed investigation." unless $f;
+
+      my $output = run "/usr/sbin/iptables-restore --noflush --test < $fn", timeout => 100;
+      say $output if $output;
+      if ($? > 0) { $err = 1 }
+      if ($? == 0) {
+	say "OK, result: $?.";
+      } elsif ($? == 1) {
+	say "ERROR, result: $?, hack contents format error.";
+      } elsif ($? == 2) {
+	say "ERROR, result: $?, iptables rule or chain error.";
+      } else {
+	say "ERROR, result: $?, unspecified error.";
+      }
+
+      unlink($fn);
+    } else {
+      say "WARNING! Hack contents is empty. It will be simply ignored.";
+    }
+    say;
+  }
+
+  say "\nERRORS found!!! Fix it before applying firewall configuration.\n" if $err;
+
+  say "Firewall hacks test finished for $hostparam{host}";
+};
 
 ##################################
 task "_t", sub {
