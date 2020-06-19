@@ -1175,7 +1175,29 @@ task "test_firewall_hacks", sub {
   say "\nERRORS found!!! Fix it before applying firewall configuration.\n" if $err;
 
   say "Firewall hacks test finished for $hostparam{host}";
+  return (($err) ? 255:0);
 };
+
+
+##################################
+desc "Erebus router: restart firewall (useful after updating firewall hacks)";
+task "restart_firewall", sub {
+  say "Restarting firewall on host ".connection->server." ...";
+  #service firewall => 'restart';
+  my $output = run "/etc/init.d/firewall restart 2>&1", timeout => 100;
+  say $output if $output;
+  return (($? > 0) ? 255:0);
+};
+
+desc "Erebus router: restart ipsec (useful after updating strongswan_config hack)";
+task "restart_ipsec", sub {
+  say "Restarting strongswan on host ".connection->server." ...";
+  #service ipsec => 'restart';
+  my $output = run "/etc/init.d/ipsec restart 2>&1", timeout => 100;
+  say $output if $output;
+  return (($? > 0) ? 255:0);
+};
+
 
 ##################################
 task "_t", sub {
