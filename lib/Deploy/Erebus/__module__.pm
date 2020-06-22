@@ -1189,11 +1189,29 @@ task "restart_firewall", sub {
   return (($? > 0) ? 255:0);
 };
 
-desc "Erebus router: restart ipsec (useful after updating strongswan_config hack)";
+desc "Erebus router: restart ipsec";
 task "restart_ipsec", sub {
   say "Restarting strongswan on host ".connection->server." ...";
   #service ipsec => 'restart';
   my $output = run "/etc/init.d/ipsec restart 2>&1", timeout => 100;
+  say $output if $output;
+  return (($? > 0) ? 255:0);
+};
+
+desc "Erebus router: reload ipsec (useful after updating strongswan_config hack)";
+task "reload_ipsec", sub {
+  say "Reloading strongswan configuration on host ".connection->server." ...";
+  #service ipsec => 'reload';
+  my $output = run "/etc/init.d/ipsec reload 2>&1", timeout => 100;
+  say $output if $output;
+  return (($? > 0) ? 255:0);
+};
+
+desc "Erebus router: reload network (useful after updating routes or dhcp)";
+task "reload_network", sub {
+  say "Reloading network configuration on host ".connection->server." ...";
+  #service network => 'reload';
+  my $output = run "/etc/init.d/network reload 2>&1", timeout => 100;
   say $output if $output;
   return (($? > 0) ? 255:0);
 };
