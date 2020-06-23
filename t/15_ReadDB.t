@@ -4,14 +4,17 @@ use warnings;
 use Test::More;
 use Test::Exception;
 
-use Ural::Deploy::ReadDB;
+use Rex;
+use Rex::Commands;
+use Ural::Deploy::ReadDB_base;
 
-dies_ok( sub { ReadDB() }, 'ReadDB() without host parameter');
+my $r = Ural::Deploy::ReadDB_base->new;
+isa_ok($r, 'Ural::Deploy::ReadDB_base');
 
-my $p = ReadDB('testhost1', format_ver => 999);
-$p = ReadDB('testhost1');
-$p = ReadDB('testhost1');
+isa_ok($r->read('testhost1'), 'Ural::Deploy::HostParam');
+isa_ok($r->read('testhost1'), 'Ural::Deploy::HostParam');
 
+my $p = $r->read('testhost1', no_cache => 1);
 isa_ok($p, 'Ural::Deploy::HostParam');
 diag explain $p;
 

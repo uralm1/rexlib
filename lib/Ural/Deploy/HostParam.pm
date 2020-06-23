@@ -6,6 +6,7 @@ use v5.12;
 #use utf8;
 
 use Carp;
+use Data::Dumper;
 
 # $p = Ural::Deploy::HostParam->new(
 #   host => 'testhost1',
@@ -18,10 +19,10 @@ sub new {
     host => $args{host}
   }, $class;
 
-  $self->{format_ver} = 0;
-  for (qw/format_ver/) {
-    $self->{$_} = $args{$_} if defined $args{$_};
-  }
+  #$self->{other_param} = 0;
+  #for (qw/other_param/) {
+  #  $self->{$_} = $args{$_} if defined $args{$_};
+  #}
 
   return $self;
 }
@@ -31,13 +32,8 @@ sub get_host {
   return shift->{host};
 }
 
-sub get_version {
-  return shift->{format_ver};
+sub dump {
+  say Dumper shift;
 }
-
-sub is_owrt_format {
-  return shift->{format_ver} eq '1';
-}
-
 
 1;
