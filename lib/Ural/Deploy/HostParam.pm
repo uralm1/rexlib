@@ -16,7 +16,8 @@ sub new {
   my ($class, %args) = @_;
   croak 'host parameter required' unless $args{host};
   my $self = bless {
-    host => $args{host}
+    host => $args{host},
+    cached => undef
   }, $class;
 
   #$self->{other_param} = 0;
@@ -30,6 +31,10 @@ sub new {
 
 sub get_host {
   return shift->{host};
+}
+
+sub is_cached {
+  return shift->{cached};
 }
 
 sub dump {

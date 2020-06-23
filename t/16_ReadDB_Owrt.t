@@ -15,11 +15,12 @@ set cmdb => {
 
 my $r = new_ok('Ural::Deploy::ReadDB_Owrt');
 
-my $p = $r->read('testhost1');
-$p = $r->read('testhost1');
+my $p = $r->read('gwsouth2');
+ok(!($p->is_cached), 'First read - not cached');
 
 isa_ok($p, 'Ural::Deploy::HostParamOwrt');
-diag explain $p;
+#diag explain $p;
+#$p->dump;
 
 done_testing();
 
