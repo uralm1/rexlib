@@ -16,6 +16,10 @@ use Carp;
 use Ural::Deploy::HostParamOwrt;
 use parent 'Ural::Deploy::ReadDB_base';
 
+use Exporter 'import';
+our @EXPORT_OK = qw(read_db);
+
+
 # my $r = Ural::Deploy::ReadDB_Owrt->new();
 # my $r = Ural::Deploy::ReadDB_Owrt->new(skip_erebus_check => 1);
 sub new {
@@ -260,6 +264,13 @@ sub remove_dups {
   my $aref = shift;
   my %seen;
   return [grep { ! $seen{ $_ }++ } @$aref];
+}
+
+
+# my $hostparam = read_db('testhost1', [no_cache => 1]);
+sub read_db {
+  my ($host, %args) = @_;
+  return Ural::Deploy::ReadDB_Owrt->new()->read($host, %args);
 }
 
 
