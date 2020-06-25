@@ -270,7 +270,7 @@ sub remove_dups {
 # my $hostparam = read_db('testhost1', [no_cache => 1]);
 sub read_db {
   my ($host, %args) = @_;
-  return Ural::Deploy::ReadDB_Owrt->new()->read($host, %args);
+  return Ural::Deploy::ReadDB_Owrt->new(skip_erebus_check => $args{skip_erebus_check})->read($host, %args);
 }
 
 

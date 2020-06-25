@@ -6,7 +6,7 @@ use Test::Exception;
 
 use Rex;
 use Rex::Commands;
-use Ural::Deploy::ReadDB_Owrt;
+use Ural::Deploy::ReadDB_Owrt qw(read_db);
 
 set cmdb => {
   type => 'YAML',
@@ -21,6 +21,10 @@ ok(!($p->is_cached), 'First read - not cached');
 isa_ok($p, 'Ural::Deploy::HostParamOwrt');
 #diag explain $p;
 #$p->dump;
+
+dies_ok(sub { $p = read_db('erebus'); }, 'Dont read erebus data if not specified.');
+$p = read_db('erebus', skip_erebus_check => 1);
+is($p->get_host, 'erebus', 'Read erebus data with skip_erebus_check');
 
 done_testing();
 

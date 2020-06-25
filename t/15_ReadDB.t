@@ -6,7 +6,7 @@ use Test::Exception;
 
 use Rex;
 use Rex::Commands;
-use Ural::Deploy::ReadDB_base;
+use Ural::Deploy::ReadDB_base qw(read_db);
 
 my $r = Ural::Deploy::ReadDB_base->new;
 isa_ok($r, 'Ural::Deploy::ReadDB_base');
@@ -21,6 +21,15 @@ ok($p->is_cached, 'Second read - cached');
 $p = $r->read('testhost1', no_cache => 1);
 isa_ok($p, 'Ural::Deploy::HostParam');
 ok(!($p->is_cached), 'Third read - not cached');
+
+$p = read_db('testhost1');
+isa_ok($p, 'Ural::Deploy::HostParam');
+ok($p->is_cached, 'Forth read - cached');
+
+$p = read_db('testhost1');
+isa_ok($p, 'Ural::Deploy::HostParam');
+ok($p->is_cached, 'Fifth read - cached');
+
 #diag explain $p;
 
 done_testing();

@@ -7,41 +7,9 @@ use DBI;
 use NetAddr::IP::Lite;
 use feature 'state';
 
-my $def_net = "UWC66";
+use Ural::Deploy::ReadDB_Owrt qw(read_db);
 
-# params
-my %hostparam = (
-  host => '',
-  gateway => '',
-  dns => ['',],
-  dns_suffix => '',
-  log_ip => '',
-  ntp_ip => '',
-  ssh_icmp_from_wans_ips => ['',],
-  wan_ip => '',
-  wan_netmask => '',
-  auto_wan_routes => [{name=>'',target=>'',netmask=>'',gateway=>''},],
-  lan_ip => '',
-  lan_netmask => '',
-  lan_routes => [{name=>'',type=>1,target=>'',netmask=>'',gateway=>'',table=>''},],
-  dhcp_on => 0,
-  dhcp_start => 0,
-  dhcp_limit => 0,
-  dhcp_leasetime => '',
-  dhcp_dns => '',
-  dhcp_dns_suffix => '',
-  dhcp_wins => '',
-  dhcp_static_leases => [{name=>'',mac=>'',ip=>''},],
-  tun_node_name => '',
-  tun_node_ip => '',
-  tun_subnet => '',
-  tun_connect_nodes => [],
-  tun_int_ip => '',
-  tun_int_netmask => '',
-  tun_pub_key => '',
-  tun_priv_key => '',
-  tun_array_ref => [],
-);
+my $def_net = "UWC66";
 
 
 ### Pre-installaion tasks for images
@@ -85,261 +53,39 @@ task "x86_preconf", sub {
 ##################################
 
 ### Helpers
-my $dbh;
-
-sub read_db {
-  my ($_host, %args) = @_;
-  die "Hostname is empty. Invalid task parameters.\n" unless $_host; 
-  die "Erebus router must be configured by Deploy:Erebus:* tasks.\n" if (!$args{skip_erebus_check} && $_host =~ /^erebus$/); 
-
-  $dbh = DBI->connect("DBI:mysql:database=".get(cmdb('dbname')).';host='.get(cmdb('dbhost')), get(cmdb('dbuser')), get(cmdb('dbpass'))) or 
-    die "Connection to the database failed.\n";
-  $dbh->do("SET NAMES 'UTF8'");
-
-  my $hr = $dbh->selectrow_hashref("SELECT \
-routers.host_name AS host, \
-router_equipment.eq_name AS eq_name, \
-router_equipment.manufacturer AS manufacturer, \
-departments.dept_name AS dept_name, \
-routers.gateway AS gateway, \
-routers.dns_list AS dns_unparsed, \
-routers.dns_suffix AS dns_suffix, \
-routers.log_ip AS log_ip, \
-routers.ntp_ip AS ntp_ip, \
-routers.ssh_icmp_from_wans_ips AS ssh_icmp_from_wans_ips_unparsed, \
-wans.ip AS wan_ip, \
-wn.mask AS wan_netmask, \
-lans.ip AS lan_ip, \
-ln.mask AS lan_netmask, \
-lans.net_id AS lan_net_id, \
-ln.net_gw AS lan_net_gw, \
-lans.dhcp_on AS dhcp_on, \
-ln.dhcp_start_ip AS dhcp_start, \
-ln.dhcp_limit AS dhcp_limit, \
-ln.dhcp_leasetime AS dhcp_leasetime, \
-ln.dhcp_dns AS dhcp_dns, \
-ln.dhcp_dns_suffix AS dhcp_dns_suffix, \
-ln.dhcp_wins AS dhcp_wins, \
-ln.dhcp_static_leases AS dhcp_static_leases_unparsed \
-FROM routers \
-INNER JOIN interfaces wans ON wans.router_id = routers.id AND wans.type = 1 \
-INNER JOIN nets wn ON wn.id = wans.net_id \
-INNER JOIN interfaces lans ON lans.router_id = routers.id AND lans.type = 2 \
-INNER JOIN nets ln ON ln.id = lans.net_id \
-LEFT OUTER JOIN router_equipment ON router_equipment.id = routers.equipment_id \
-LEFT OUTER JOIN departments ON departments.id = routers.placement_dept_id \
-WHERE host_name = ?", {}, $_host);
-  die "There's no such host in the database, or database error.\n" unless $hr;
-  #say Dumper $hr;
-
-  %hostparam = %$hr;
-
-  # extract routes for lan interface
-  my $ar1 = $dbh->selectall_arrayref("SELECT \
-type AS type, \
-nets.net_ip AS target, \
-nets.mask AS netmask, \
-r_table AS 'table' \
-FROM routes \
-INNER JOIN nets ON net_dst_id = nets.id \
-WHERE net_src_id = ?", {Slice=>{}, MaxRows=>500}, $hostparam{lan_net_id});
-  die "Fetching routes database failure.\n" unless $ar1;
-  #say Dumper $ar1;
-
-  $hostparam{lan_routes} = [];
-  my $routeid = 1;
-  my $r_gateway = $hostparam{lan_net_gw};
-  for (@$ar1) {
-    my $r1 = {
-      name => "lan_route$routeid",
-      gateway => $r_gateway,
-      target => $_->{target},
-      netmask => $_->{netmask},
-      table => $_->{table},
-      type => $_->{type},
-    };
-    push @{$hostparam{lan_routes}}, $r1;
-    $routeid++;
-  }
-  delete $hostparam{lan_net_id};
-  delete $hostparam{lan_net_gw};
-
-  # parse dns_list
-  $hostparam{dns} = [split /,/, $hostparam{dns_unparsed}];
-  delete $hostparam{dns_unparsed};
-  # parse dhcp_start
-  if ($hostparam{dhcp_start} =~ /^(?:[0-9]{1,3}\.){3}([0-9]{1,3})$/) {
-    $hostparam{dhcp_start} = $1;
-  }
-  # parse ssh_icmp_from_wans_ips
-  $hostparam{ssh_icmp_from_wans_ips} = [split /,/, $hostparam{ssh_icmp_from_wans_ips_unparsed}];
-  delete $hostparam{ssh_icmp_from_wans_ips_unparsed};
-  # parse dhcp_static_leases
-  my @rres1;
-  foreach (split /;/, $hostparam{dhcp_static_leases_unparsed}) {
-    my @cr = split /,/, $_;
-    if ($cr[0] and
-      $cr[1] =~ /^(?:[0-9a-fA-F]{1,2}\:){5}[0-9a-fA-F]{1,2}$/ and
-      $cr[2] =~ /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/) {
-        push @rres1, {name => 'lan_'.lc($cr[0]), mac => $cr[1], ip => $cr[2]};
-    } else {
-      say "WARNING: invalid dhcp static lease: $cr[0] on lan interface ignored.";
-    }
-  }
-  $hostparam{dhcp_static_leases} = \@rres1;
-  delete $hostparam{dhcp_static_leases_unparsed};
-
-  # read vpn parameters
-  $hr = $dbh->selectrow_hashref("SELECT \
-routers.host_name AS tun_node_name, \
-ifs.ip AS tun_node_ip, \
-nets.net_ip AS tun_subnet_ip, \
-nets.mask AS tun_subnet_mask, \
-tun_ip AS tun_int_ip, \
-tun_netmask AS tun_int_netmask, \
-pub_key AS tun_pub_key, \
-priv_key AS tun_priv_key \
-FROM vpns \
-INNER JOIN routers ON routers.id = router_id \
-INNER JOIN nets ON nets.id = subnet_id \
-INNER JOIN interfaces ifs ON ifs.id = node_if_id \
-WHERE routers.host_name = ?", {}, $_host);
-  die "There's no such vpn in the database, or database error.\n" unless $hr;
-  #say Dumper $hr;
-  %hostparam = (%hostparam, %$hr);
-
-  my $net = NetAddr::IP::Lite->new($hr->{tun_subnet_ip}, $hr->{tun_subnet_mask}) or
-    die("Invalid vpn subnet address or mask!\n");
-  $hostparam{tun_subnet} = $net->cidr;
-
-  $hostparam{tun_array_ref} = read_tunnels_tinc();
-  #say Dumper $hostparam{tun_array_ref};
-
-  # build tinc connect_to list of nodes
-  my @tmp_list = grep { $_->{from_hostname} eq $hostparam{tun_node_name} } @{$hostparam{tun_array_ref}};
-  #say Dumper \@tmp_list;
-  say "WARNING!!! NO destination VPN tunnels are configured for this node. ConnectTo list will be empty." unless @tmp_list;
-
-  $hostparam{tun_connect_nodes} = remove_dups([map { $_->{to_hostname} } @tmp_list]);
-  foreach (@{$hostparam{tun_connect_nodes}}) {
-    die "Invalid tunnel configuration! Source node connected to itself!\n" if $_ eq $hostparam{tun_node_name};
-  }
-  ### TODO: check if we can run without vpn configuration records
-
-  # build route list
-  my $sth = $dbh->prepare("SELECT \
-host_name, \
-wans.ip, \
-wn.mask \
-FROM routers \
-INNER JOIN interfaces wans ON wans.router_id = routers.id AND wans.type = 1 \
-INNER JOIN nets wn ON wn.id = wans.net_id");
-  $sth->execute;
-  my @w_route_list;
-  RLIST: while (my $data = $sth->fetchrow_arrayref) {
-    next RLIST if $data->[0] eq $_host; # skip self
-    #say Dumper $data;
-    my $dst_ip = NetAddr::IP::Lite->new($data->[1], $data->[2]);
-    die "Invalid wan ip address while building route list" unless $dst_ip;
-    my $_r_name = 'w_'.lc($data->[0]);
-    my $_r_target = $dst_ip->network->addr; #say "Network ip: ".$_r_target;
-    my $_r_netmask = $data->[2];
-    # remove route target+netmask duplications
-    RCHECK1: foreach (@w_route_list) {
-      if ($_r_target eq $_->{target} && $_r_netmask eq $_->{netmask}) {
-	say "NOTE: No route to $data->[0] will be build because the same route for $_->{name} has already been built.";
-	next RLIST;
-      }
-    }
-    # fix route name duplications
-    my $i = 1;
-    my $_prev_r_name = $_r_name;
-    RCHECK2: foreach (@w_route_list) {
-      if ($_r_name eq $_->{name}) {
-	$_r_name = $_prev_r_name.'_'.$i;
-	$i++;
-        redo RCHECK2;
-      }
-    }
-    push @w_route_list, {name => $_r_name, target => $_r_target, netmask => $_r_netmask, gateway => $hostparam{gateway}};
-  }
-  $hostparam{auto_wan_routes} = \@w_route_list;
-  #say Dumper $hostparam{auto_wan_routes};
-
-  $dbh->disconnect;
-  say "Host configuration has successfully been read from the database.";
-  1;
-}
-
-
-sub remove_dups {
-  my $aref = shift;
-  my %seen;
-  return [grep { ! $seen{ $_ }++ } @$aref];
-}
-
-
-sub read_tunnels_tinc {
-  my $s = $dbh->prepare("SELECT \
-t.id AS id, \
-r1.host_name AS from_hostname, \
-ifs1.ip AS from_ip, \
-r2.host_name AS to_hostname, \
-ifs2.ip AS to_ip \
-FROM tunnels t \
-INNER JOIN vpns v1 ON t.vpn_from_id = v1.id \
-INNER JOIN routers r1 ON v1.router_id = r1.id \
-INNER JOIN interfaces ifs1 ON v1.node_if_id = ifs1.id \
-INNER JOIN vpns v2 ON t.vpn_to_id = v2.id \
-INNER JOIN routers r2 ON v2.router_id = r2.id \
-INNER JOIN interfaces ifs2 ON v2.node_if_id = ifs2.id \
-WHERE t.vpn_type_id = 1");
-  $s->execute;
-  my @t_arr;
-  while (my $hr = $s->fetchrow_hashref) {
-    #say Dumper $hr;
-    push @t_arr, $hr;
-  }
-  return \@t_arr;
-}
-
-
 sub recursive_search_by_from_hostname {
-  my $listref = shift;
-  my $hostname = shift;
+  my ($listref, $hostname, $tun_array_ref, $tun_node_name) = @_;
 
   state $loop_control = 0;
   die "Wrong tunnels configuration (reqursive infinite loop found).\n" if $loop_control++ >= 30;
 
-  my @tt1 = grep { $_->{from_hostname} eq $hostname } @{$hostparam{tun_array_ref}};
+  my @tt1 = grep { $_->{from_hostname} eq $hostname } @$tun_array_ref;
   foreach my $hh1 (@tt1) {
-    unless ((grep { $_ eq $hh1->{to_ip} } @$listref) || ($hh1->{to_hostname} eq $hostparam{tun_node_name})) {
+    unless ((grep { $_ eq $hh1->{to_ip} } @$listref) || ($hh1->{to_hostname} eq $tun_node_name)) {
       push @$listref, $hh1->{to_ip};
-      recursive_search_by_from_hostname($listref, $hh1->{to_hostname});
+      recursive_search_by_from_hostname($listref, $hh1->{to_hostname}, $tun_array_ref, $tun_node_name);
     }
   }
 }
 
 
 sub recursive_search_by_to_hostname {
-  my $listref = shift;
-  my $hostname = shift;
+  my ($listref, $hostname, $tun_array_ref, $tun_node_name) = @_;
 
   state $loop_control = 0;
   die "Wrong tunnels configuration (reqursive infinite loop found).\n" if $loop_control++ >= 30;
 
-  my @tt1 = grep { $_->{to_hostname} eq $hostname } @{$hostparam{tun_array_ref}};
+  my @tt1 = grep { $_->{to_hostname} eq $hostname } @$tun_array_ref;
   foreach my $hh1 (@tt1) {
-    unless ((grep { $_ eq $hh1->{from_ip} } @$listref) || ($hh1->{from_hostname} eq $hostparam{tun_node_name})) {
+    unless ((grep { $_ eq $hh1->{from_ip} } @$listref) || ($hh1->{from_hostname} eq $tun_node_name)) {
       push @$listref, $hh1->{from_ip};
-      recursive_search_by_to_hostname($listref, $hh1->{from_hostname});
+      recursive_search_by_to_hostname($listref, $hh1->{from_hostname}, $tun_array_ref, $tun_node_name);
     }
   }
 }
 
 
 sub check_par {
-  die "Hostname parameter is empty. Configuration wasn't read.\n" unless $hostparam{host}; 
   die "Unsupported operating system!\n" unless operating_system_is('OpenWrt');
   #say "OS version: ".operating_system_version();
   #say "OS release: ".operating_system_release();
@@ -405,35 +151,35 @@ desc "OWRT routers: DEPLOY ROUTER
   rex -H 10.0.1.1 deploy_router --confhost=gwtest1";
 task "deploy_router", sub {
   my $ch = shift->{confhost};
-  read_db $ch;
+  my $p = read_db($ch);
   check_par;
 
-  say "Router deployment/OpenWRT/ started for $hostparam{host}";
-  say "Router manufacturer from database: $hostparam{manufacturer}" if $hostparam{manufacturer};
-  say "Router type from database: $hostparam{eq_name}" if $hostparam{eq_name};
-  say "Department: $hostparam{dept_name}\n" if $hostparam{dept_name};
-  Deploy::Owrt::conf_system();
+  say 'Router deployment/OpenWRT/ started for '.$p->get_host;
+  say "Router manufacturer from database: $p->{manufacturer}" if $p->{manufacturer};
+  say "Router type from database: $p->{eq_name}" if $p->{eq_name};
+  say "Department: $p->{dept_name}\n" if $p->{dept_name};
+  # confhost parameter is required
+  Deploy::Owrt::conf_system( { confhost => $ch } );
   sleep 1;
-  Deploy::Owrt::conf_net();
+  Deploy::Owrt::conf_net( { confhost => $ch } );
   sleep 1;
-  Deploy::Owrt::conf_fw();
+  Deploy::Owrt::conf_fw( { confhost => $ch } );
   sleep 1;
-  Deploy::Owrt::conf_tun();
-  say "Router deployment/OpenWRT/ finished for $hostparam{host}";
+  Deploy::Owrt::conf_tun( { confhost => $ch } );
+  say 'Router deployment/OpenWRT/ finished for '.$p->get_host;
   say "!!! Reboot router manually to apply changes !!!";
 };
 
 
 
 desc "OWRT routers: Configure system parameters";
-# if --confhost=host parameter is specified, host configuration is read
-# from the database, otherwise uses current
+# --confhost=host parameter is required
 task "conf_system", sub {
   my $ch = shift->{confhost};
-  read_db $ch if $ch;
+  my $p = read_db($ch);
   check_par;
 
-  say "System configuration started for $hostparam{host}";
+  say 'System configuration started for '.$p->get_host;
 
   my $tpl_sys_file = is_x86() ? 'files/system.x86.tpl' : 'files/system.tp1043.tpl';
   file "/etc/config/system",
@@ -447,26 +193,26 @@ task "conf_system", sub {
     owner => "ural",
     group => "root",
     mode => 644,
-    content => template("files/banner.0.tpl", _hostname=>$hostparam{host}),
+    content => template("files/banner.0.tpl", _hostname=>$p->get_host),
     on_change => sub { say "banner updated." };
 
   uci "revert system";
 
   # system parameters
-  uci "set system.\@system[0].hostname=\'$hostparam{host}\'";
+  uci "set system.\@system[0].hostname=\'$p->{host}\'";
   uci "set system.\@system[0].timezone=\'UTC-5\'";
-  if (defined $hostparam{log_ip} && $hostparam{log_ip} ne '') {
-    uci "set system.\@system[0].log_ip=\'$hostparam{log_ip}\'";
+  if (defined $p->{log_ip} && $p->{log_ip} ne '') {
+    uci "set system.\@system[0].log_ip=\'$p->{log_ip}\'";
     uci "set system.\@system[0].log_port=\'514\'";
   }
   say "/etc/config/system configured.";
 
   # ntp
   uci "set system.ntp.enable_server=0";
-  if (defined $hostparam{ntp_ip} && $hostparam{ntp_ip} ne '') {
+  if (defined $p->{ntp_ip} && $p->{ntp_ip} ne '') {
     uci "set system.ntp.enabled=1";
     uci "delete system.ntp.server";
-    uci "add_list system.ntp.server=\'$hostparam{ntp_ip}\'";
+    uci "add_list system.ntp.server=\'$p->{ntp_ip}\'";
   } else {
     uci "set system.ntp.enabled=0";
   }
@@ -484,19 +230,18 @@ task "conf_system", sub {
     content => template('files/sysctl.conf.0.tpl'),
     on_change => sub { say "sysctl parameters configured." };
 
-  say "System configuration finished for $hostparam{host}";
+  say 'System configuration finished for '.$p->get_host;
 };
 
 
 desc "OWRT routers: Configure network";
-# if --confhost=host parameter is specified, host configuration is read
-# from the database, otherwise uses current
+# --confhost=host parameter is required
 task "conf_net", sub {
   my $ch = shift->{confhost};
-  read_db $ch if $ch;
+  my $p = read_db($ch);
   check_par;
 
-  say "Network configuration started for $hostparam{host}";
+  say 'Network configuration started for '.$p->get_host;
 
   my $tpl_net_file;
   my $lan_ifname;
@@ -523,21 +268,21 @@ task "conf_net", sub {
 
   uci "set network.lan.ifname=\'$lan_ifname\'";
   uci "set network.lan.proto=\'static\'";
-  uci "set network.lan.ipaddr=\'$hostparam{lan_ip}\'";
-  uci "set network.lan.netmask=\'$hostparam{lan_netmask}\'";
+  uci "set network.lan.ipaddr=\'$p->{lan_ip}\'";
+  uci "set network.lan.netmask=\'$p->{lan_netmask}\'";
   uci "set network.lan.ipv6=0";
 
   uci "set network.wan.ifname=\'$wan_ifname\'";
   uci "set network.wan.proto=\'static\'";
-  uci "set network.wan.ipaddr=\'$hostparam{wan_ip}\'";
-  uci "set network.wan.netmask=\'$hostparam{wan_netmask}\'";
-  uci "set network.wan.gateway=\'$hostparam{gateway}\'";
+  uci "set network.wan.ipaddr=\'$p->{wan_ip}\'";
+  uci "set network.wan.netmask=\'$p->{wan_netmask}\'";
+  uci "set network.wan.gateway=\'$p->{gateway}\'";
   uci "set network.wan.ipv6=0";
 
   quci "delete network.wan6";
 
   # lan routes
-  foreach (@{$hostparam{lan_routes}}) {
+  foreach (@{$p->{lan_routes}}) {
     my $t = $_->{'type'};
     my $n = $_->{'name'};
     if ($t == 1) { # 1 UNICAST
@@ -553,7 +298,7 @@ task "conf_net", sub {
   }
 
   # auto wan routes
-  foreach (@{$hostparam{auto_wan_routes}}) {
+  foreach (@{$p->{auto_wan_routes}}) {
     my $n = $_->{'name'};
     uci "set network.$n=route";
     uci "set network.$n.interface=wan";
@@ -565,11 +310,11 @@ task "conf_net", sub {
 
   # dns
   quci "delete network.lan.dns";
-  foreach (@{$hostparam{dns}}) {
+  foreach (@{$p->{dns}}) {
     uci "add_list network.lan.dns=\'$_\'";
   }
   quci "delete network.lan.dns_search";
-  #uci "add_list network.lan.dns_search=\'$hostparam{dhcp_dns_suffix}\'";
+  #uci "add_list network.lan.dns_search=\'$p->{dhcp_dns_suffix}\'";
   say "/etc/config/network created and configured.";
 
   # dhcp
@@ -583,15 +328,15 @@ task "conf_net", sub {
   uci "set dhcp.\@dnsmasq[0].domainneeded=0";
   uci "set dhcp.\@dnsmasq[0].boguspriv=0";
   uci "set dhcp.\@dnsmasq[0].rebind_protection=0";
-  uci "set dhcp.\@dnsmasq[0].domain=\'$hostparam{dns_suffix}\'";
+  uci "set dhcp.\@dnsmasq[0].domain=\'$p->{dns_suffix}\'";
   quci "delete dhcp.\@dnsmasq[0].local";
   uci "set dhcp.\@dnsmasq[0].logqueries=0";
 
-  uci "set dhcp.lan.start=\'$hostparam{dhcp_start}\'";
-  uci "set dhcp.lan.limit=\'$hostparam{dhcp_limit}\'";
-  uci "set dhcp.lan.leasetime=\'$hostparam{dhcp_leasetime}\'";
+  uci "set dhcp.lan.start=\'$p->{dhcp_start}\'";
+  uci "set dhcp.lan.limit=\'$p->{dhcp_limit}\'";
+  uci "set dhcp.lan.leasetime=\'$p->{dhcp_leasetime}\'";
   # disable dhcp at all
-  uci "set dhcp.lan.ignore=".(($hostparam{dhcp_on} > 0)?0:1);
+  uci "set dhcp.lan.ignore=".(($p->{dhcp_on} > 0)?0:1);
   # only allow static leases
   #uci "set dhcp.lan.dynamicdhcp=0";
   # dhcpv6
@@ -600,14 +345,14 @@ task "conf_net", sub {
 
   quci "delete dhcp.lan.dhcp_option";
   #uci "add_list dhcp.lan.dhcp_option=\'3,192.168.33.81\'"; #router
-  uci "add_list dhcp.lan.dhcp_option=\'6,$hostparam{dhcp_dns}\'" if $hostparam{dhcp_dns}; #dns
-  uci "add_list dhcp.lan.dhcp_option=\'15,$hostparam{dhcp_dns_suffix}\'";
-  uci "add_list dhcp.lan.dhcp_option=\'44,$hostparam{dhcp_wins}\'"; #wins
+  uci "add_list dhcp.lan.dhcp_option=\'6,$p->{dhcp_dns}\'" if $p->{dhcp_dns}; #dns
+  uci "add_list dhcp.lan.dhcp_option=\'15,$p->{dhcp_dns_suffix}\'";
+  uci "add_list dhcp.lan.dhcp_option=\'44,$p->{dhcp_wins}\'"; #wins
   uci "add_list dhcp.lan.dhcp_option=\'46,8\'";
 
   quci "delete dhcp.\@host[-1]" foreach 0..9;
   # static leases
-  for (@{$hostparam{dhcp_static_leases}}) {
+  for (@{$p->{dhcp_static_leases}}) {
     uci "add dhcp host";
     uci "set dhcp.\@host[-1].ip=\'$_->{ip}\'";
     uci "set dhcp.\@host[-1].mac=\'$_->{mac}\'";
@@ -622,19 +367,18 @@ task "conf_net", sub {
   insert_autogen_comment '/etc/config/network';
   insert_autogen_comment '/etc/config/dhcp';
 
-  say "\nNetwork configuration finished for $hostparam{host}. Restarting the router will change the IP-s and enable DHCP server on LAN!!!.\n";
+  say "\nNetwork configuration finished for $p->{host}. Restarting the router will change the IP-s and enable DHCP server on LAN!!!.\n";
 };
 
 
 desc "OWRT routers: Configure firewall";
-# if --confhost=host parameter is specified, host configuration is read
-# from the database, otherwise uses current
+# --confhost=host parameter is required
 task "conf_fw", sub {
   my $ch = shift->{confhost};
-  read_db $ch if $ch;
+  my $p = read_db($ch);
   check_par;
 
-  say "Firewall configuration started for $hostparam{host}";
+  say 'Firewall configuration started for '.$p->get_host;
 
   pkg "firewall", ensure => "present";
 
@@ -645,7 +389,7 @@ task "conf_fw", sub {
     content => template("files/firewall.0.tpl");
 
   uci "revert firewall";
-  foreach (@{$hostparam{ssh_icmp_from_wans_ips}}) {
+  foreach (@{$p->{ssh_icmp_from_wans_ips}}) {
     # icmp-wan-in-xxx
     uci "add firewall rule";
     #uci "set firewall.\@rule[-1].name=\'icmp-wan-in-$_\'";
@@ -692,17 +436,19 @@ task "conf_fw", sub {
   #uci "set firewall.\@rule[-1].name=syslog-wan-out";
   uci "set firewall.\@rule[-1].dest=wan";
   uci "set firewall.\@rule[-1].proto=udp";
-  uci "set firewall.\@rule[-1].dest_ip=\'$hostparam{log_ip}\'";
+  uci "set firewall.\@rule[-1].dest_ip=\'$p->{log_ip}\'";
   uci "set firewall.\@rule[-1].dest_port=514";
   uci "set firewall.\@rule[-1].target=ACCEPT";
 
   #####
   my @outgoing_rules_ip_list;
-  recursive_search_by_from_hostname(\@outgoing_rules_ip_list, $hostparam{tun_node_name});
+  recursive_search_by_from_hostname(\@outgoing_rules_ip_list, $p->{tun_node_name},
+    $p->{tun_array_ref}, $p->{tun_node_name});
   #say 'Outgoing: ', Dumper \@outgoing_rules_ip_list;
 
   my @incoming_rules_ip_list;
-  recursive_search_by_to_hostname(\@incoming_rules_ip_list, $hostparam{tun_node_name});
+  recursive_search_by_to_hostname(\@incoming_rules_ip_list, $p->{tun_node_name},
+    $p->{tun_array_ref}, $p->{tun_node_name});
   #say 'Incoming: ', Dumper \@incoming_rules_ip_list;
 
   # build outgoing tinc rules
@@ -761,19 +507,18 @@ task "conf_fw", sub {
     mode => 644,
     content => template("files/firewall.user.0.tpl");
 
-  say "Firewall configuration finished for $hostparam{host}";
+  say 'Firewall configuration finished for '.$p->get_host;
 };
 
 
 desc "OWRT routers: Configure tinc tunnel";
-# if --confhost=host parameter is specified, host configuration is read
-# from the database, otherwise uses current
+# --confhost=host parameter is required
 task "conf_tun", sub {
   my $ch = shift->{confhost};
-  read_db $ch if $ch;
+  my $p = read_db($ch);
   check_par;
 
-  say "Tinc tunnel configuration started for $hostparam{host}";
+  say 'Tinc tunnel configuration started for '.$p->get_host;
 
   pkg "tinc", ensure => "present";
 
@@ -790,16 +535,16 @@ task "conf_tun", sub {
   uci "set tinc.\@tinc-net[-1].AddressFamily=ipv4";
   uci "set tinc.\@tinc-net[-1].Interface=vpn1";
   uci "set tinc.\@tinc-net[-1].MaxTimeout=600";
-  uci "set tinc.\@tinc-net[-1].Name=\'$hostparam{tun_node_name}\'";
-  uci "add_list tinc.\@tinc-net[-1].ConnectTo=\'$_\'" foreach (@{$hostparam{tun_connect_nodes}});
+  uci "set tinc.\@tinc-net[-1].Name=\'$p->{tun_node_name}\'";
+  uci "add_list tinc.\@tinc-net[-1].ConnectTo=\'$_\'" foreach (@{$p->{tun_connect_nodes}});
 
-  uci "set tinc.$hostparam{tun_node_name}=tinc-host";
+  uci "set tinc.$p->{tun_node_name}=tinc-host";
   uci "set tinc.\@tinc-host[-1].enabled=1";
   uci "set tinc.\@tinc-host[-1].net=\'$def_net\'";
   uci "set tinc.\@tinc-host[-1].Cipher=blowfish";
   uci "set tinc.\@tinc-host[-1].Compression=0";
-  uci "add_list tinc.\@tinc-host[-1].Address=\'$hostparam{tun_node_ip}\'";
-  uci "set tinc.\@tinc-host[-1].Subnet=\'$hostparam{tun_subnet}\'";
+  uci "add_list tinc.\@tinc-host[-1].Address=\'$p->{tun_node_ip}\'";
+  uci "set tinc.\@tinc-host[-1].Subnet=\'$p->{tun_subnet}\'";
 
   #uci "show tinc";
   uci "commit tinc";
@@ -818,8 +563,8 @@ task "conf_tun", sub {
     group => "root",
     mode => 755,
     content => template("files/tinc/$def_net/tinc-up.tpl",
-      _tun_ip =>$hostparam{tun_int_ip},
-      _tun_netmask=>$hostparam{tun_int_netmask});
+      _tun_ip =>$p->{tun_int_ip},
+      _tun_netmask=>$p->{tun_int_netmask});
   
   file "/etc/tinc/$def_net/tinc-down",
     owner => "ural",
@@ -828,11 +573,11 @@ task "conf_tun", sub {
     content => template("files/tinc/$def_net/tinc-down.tpl");
   say "Scripts tinc-up/tinc-down are created.";
 
-  unless ($hostparam{tun_pub_key} && $hostparam{tun_priv_key}) {
-    say "No keypair found in the database, running gen_node for $hostparam{tun_node_name}...";
-    run_task "Deploy:Owrt:gen_node", params=>{newnode=>$hostparam{tun_node_name}};
+  unless ($p->{tun_pub_key} && $p->{tun_priv_key}) {
+    say "No keypair found in the database, running gen_node for $p->{tun_node_name}...";
+    run_task "Deploy:Owrt:gen_node", params=>{newnode=>$p->{tun_node_name}};
   } else {
-    say "Keypair for $hostparam{tun_node_name} from the database is used.";
+    say "Keypair for $p->{tun_node_name} from the database is used.";
   }
     
   # configure tinc keys
@@ -840,14 +585,14 @@ task "conf_tun", sub {
     owner => "ural",
     group => "root",
     mode => 600,
-    content => $hostparam{tun_priv_key};
-  say "Tinc private key file for $hostparam{tun_node_name} is saved to rsa_key.priv";
+    content => $p->{tun_priv_key};
+  say "Tinc private key file for $p->{tun_node_name} is saved to rsa_key.priv";
 
   # generate all hosts files for this node
   sleep 1;
-  Deploy::Owrt::dist_nodes();
+  Deploy::Owrt::dist_nodes( { confhost => $ch } );
 
-  say "Tinc tunnel configuration finished for $hostparam{host}";
+  say 'Tinc tunnel configuration finished for '.$p->get_host;
 };
 
 
@@ -895,20 +640,13 @@ task "gen_node", sub {
 
 
 desc "Distribute tinc net hosts files to host (works on erebus too)";
-# if --confhost=host parameter is specified, host configuration is read
-# from the database, otherwise uses current
+# --confhost=host parameter is required
 task "dist_nodes", sub {
   my $params = shift;
   my $ch = $params->{confhost};
-  read_db($ch, skip_erebus_check=>1) if $ch;
+  my $p = read_db($ch, skip_erebus_check=>1);
 
-  my $hostparam_ref = \%hostparam;
-  $hostparam_ref = $params->{ext_hostparam} if ($params->{ext_hostparam});
-
-  # like check_par() but we should run on erebus too...
-  die "Hostname is empty. Configuration wasn't read" unless $hostparam_ref->{host}; 
-
-  say "Tinc hostfiles distribution started for $hostparam_ref->{host}";
+  say 'Tinc hostfiles distribution started for '.$p->get_host;
 
   file "/etc/tinc/$def_net/hosts",
     owner => "ural",
@@ -962,8 +700,8 @@ INNER JOIN interfaces ifs ON ifs.id = node_if_id") or die $dbh->errstr;
   $dbh->disconnect;
 
   # check for hosts in connection list exist
-  my @_con_list = @{$hostparam_ref->{tun_connect_nodes}};
-  push @_con_list, $hostparam_ref->{tun_node_name}; # current host must be in list too
+  my @_con_list = @{$p->{tun_connect_nodes}};
+  push @_con_list, $p->{tun_node_name}; # current host must be in list too
   foreach my $h (@_con_list) {
     my $f = 0;
     foreach (@hosts_files) {
@@ -972,7 +710,7 @@ INNER JOIN interfaces ifs ON ifs.id = node_if_id") or die $dbh->errstr;
     say "WARNING! Host $h is in tinc connection list, but not distributed." unless ($f);
   }
 
-  say "Tinc hostfiles distribution finished for $hostparam_ref->{host}";
+  say 'Tinc hostfiles distribution finished for '.$p->get_host;
 };
 
 
@@ -991,21 +729,23 @@ task "reload_tinc", sub {
 
 ##################################
 task "_t", sub {
-  read_db 'gwsouth2';
-  #read_db 'gwtest1';
-  say Dumper \%hostparam;
+  my $p = read_db 'gwsouth2';
+  #my $p = read_db 'gwtest1';
   check_par;
+  $p->dump;
 
   #my @outgoing_rules_ip_list;
-  #recursive_search_by_from_hostname(\@outgoing_rules_ip_list, $hostparam{tun_node_name});
+  #recursive_search_by_from_hostname(\@outgoing_rules_ip_list, $p->{tun_node_name},
+  #  $p->{tun_array_ref}, $p->{tun_node_name});
   #say 'Outgoing: ', Dumper \@outgoing_rules_ip_list;
 
   #my @incoming_rules_ip_list;
-  #recursive_search_by_to_hostname(\@incoming_rules_ip_list, $hostparam{tun_node_name});
+  #recursive_search_by_to_hostname(\@incoming_rules_ip_list, $p->{tun_node_name},
+  #  $p->{tun_array_ref}, $p->{tun_node_name});
   #say 'Incoming: ', Dumper \@incoming_rules_ip_list;
 
   #check_par;
-  say Dumper \%hostparam;
+  #$p->dump;
 }, {dont_register => TRUE};
 
 1;

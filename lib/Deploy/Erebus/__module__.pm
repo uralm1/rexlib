@@ -110,8 +110,7 @@ task "deploy_router", sub {
 
 
 desc "Erebus router: Configure software";
-# if --confhost=erebus parameter is specified, host configuration is read
-# from the database, otherwise uses current
+# --confhost=erebus or empty is allowed
 task "conf_software", sub {
   my $ch = shift->{confhost} || 'erebus';
   my $p = read_db($ch);
@@ -141,8 +140,7 @@ task "conf_software", sub {
 
 
 desc "Erebus router: Configure system parameters";
-# if --confhost=erebus parameter is specified, host configuration is read
-# from the database, otherwise uses current
+# --confhost=erebus or empty is allowed
 task "conf_system", sub {
   my $ch = shift->{confhost} || 'erebus';
   my $p = read_db($ch);
@@ -205,8 +203,7 @@ task "conf_system", sub {
 
 
 desc "Erebus router: Configure network";
-# if --confhost=erebus parameter is specified, host configuration is read
-# from the database, otherwise uses current
+# --confhost=erebus or empty is allowed
 task "conf_net", sub {
   my $ch = shift->{confhost} || 'erebus';
   my $p = read_db($ch);
@@ -402,8 +399,7 @@ task "conf_net", sub {
 
 
 desc "Erebus router: Configure IPsec";
-# if --confhost=erebus parameter is specified, host configuration is read
-# from the database, otherwise uses current
+# --confhost=erebus or empty is allowed
 task "conf_ipsec", sub {
   my $ch = shift->{confhost} || 'erebus';
   my $p = read_db($ch);
@@ -443,8 +439,7 @@ task "conf_ipsec", sub {
 
 
 desc "Erebus router: Configure tinc";
-# if --confhost=erebus parameter is specified, host configuration is read
-# from the database, otherwise uses current
+# --confhost=erebus or empty is allowed
 task "conf_tinc", sub {
   my $ch = shift->{confhost} || 'erebus';
   my $p = read_db($ch);
@@ -529,17 +524,16 @@ task "conf_tinc", sub {
       say "Tinc private key file for $p->{tun_node_name} is saved to rsa_key.priv";
     };
 
-  # generate all hosts files for this node
+  # generate all hosts files for this (=erebus) node
   sleep 1;
-  Deploy::Owrt::dist_nodes({ext_hostparam=>$p});
+  Deploy::Owrt::dist_nodes( { confhost => $ch } );
 
   say 'Tinc configuration finished for '.$p->get_host;
 };
 
 
 desc "Erebus router: Configure firewall";
-# if --confhost=erebus parameter is specified, host configuration is read
-# from the database, otherwise uses current
+# --confhost=erebus or empty is allowed
 task "conf_fw", sub {
   my $ch = shift->{confhost} || 'erebus';
   my $p = read_db($ch);
@@ -777,8 +771,7 @@ task "conf_fw", sub {
 
 
 desc "Erebus router: Configure r2d2";
-# if --confhost=erebus parameter is specified, host configuration is read
-# from the database, otherwise uses current
+# --confhost=erebus or empty is allowed
 task "conf_r2d2", sub {
   my $ch = shift->{confhost} || 'erebus';
   my $p = read_db($ch);
@@ -839,8 +832,7 @@ task "conf_r2d2", sub {
 
 
 desc "Erebus router: Configure snmp";
-# if --confhost=erebus parameter is specified, host configuration is read
-# from the database, otherwise uses current
+# --confhost=erebus or empty is allowed
 task "conf_snmp", sub {
   my $ch = shift->{confhost} || 'erebus';
   my $p = read_db($ch);
