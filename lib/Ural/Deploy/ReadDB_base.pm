@@ -10,7 +10,7 @@ use Data::Dumper;
 use Ural::Deploy::HostParam;
 
 use Exporter 'import';
-our @EXPORT_OK = qw(read_db);
+our @EXPORT = qw(read_db);
 
 
 my %params_cache;

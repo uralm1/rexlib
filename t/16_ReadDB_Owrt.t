@@ -6,7 +6,7 @@ use Test::Exception;
 
 use Rex;
 use Rex::Commands;
-use Ural::Deploy::ReadDB_Owrt qw(read_db);
+use Ural::Deploy::ReadDB_Owrt;
 
 set cmdb => {
   type => 'YAML',

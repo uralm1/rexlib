@@ -3,6 +3,13 @@ Description: Deploy erebus router
 Author: ural
 License: Apache 2.0
 PerlRequire:
-  - File::Basename
-  - DBI
-  - NetAddr::IP
+  - Deploy::Erebus::Software
+  - Deploy::Erebus::System
+  - Deploy::Erebus::Net
+  - Deploy::Erebus::Firewall
+  - Deploy::Erebus::Ipsec
+  - Deploy::Erebus::Tinc
+  - Deploy::Erebus::R2d2
+  - Deploy::Erebus::Snmp
+  - Ural::Deploy::ReadDB_Erebus
+  - Ural::Deploy::Utils

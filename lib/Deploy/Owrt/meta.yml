@@ -3,6 +3,9 @@ Description: Deploy remote routers
 Author: ural
 License: Apache 2.0
 PerlRequire:
-  - File::Basename
-  - DBI
-  - NetAddr::IP
+  - Deploy::Owrt::System
+  - Deploy::Owrt::Net
+  - Deploy::Owrt::Firewall
+  - Deploy::Owrt::Tun
+  - Ural::Deploy::ReadDB_Owrt
+  - Ural::Deploy::Utils

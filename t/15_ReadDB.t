@@ -6,7 +6,7 @@ use Test::Exception;
 
 use Rex;
 use Rex::Commands;
-use Ural::Deploy::ReadDB_base qw(read_db);
+use Ural::Deploy::ReadDB_base;
 
 my $r = Ural::Deploy::ReadDB_base->new;
 isa_ok($r, 'Ural::Deploy::ReadDB_base');

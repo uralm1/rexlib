@@ -1,0 +1,7 @@
+Name: Deploy::Erebus::System
+Description: Deploy erebus system configuration
+Author: ural
+License: Apache 2.0
+PerlRequire:
+  - Ural::Deploy::ReadDB_Erebus
+  - Ural::Deploy::Utils

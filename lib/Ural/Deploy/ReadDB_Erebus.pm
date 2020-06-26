@@ -18,7 +18,7 @@ use Ural::Deploy::Utils qw(remove_dups);
 use parent 'Ural::Deploy::ReadDB_base';
 
 use Exporter 'import';
-our @EXPORT_OK = qw(read_db);
+our @EXPORT = qw(read_db);
 
 
 sub new {

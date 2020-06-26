@@ -1,0 +1,8 @@
+Name: Deploy::Erebus::Net
+Description: Deploy erebus networking
+Author: ural
+License: Apache 2.0
+PerlRequire:
+  - Ural::Deploy::ReadDB_Erebus
+  - Ural::Deploy::Utils
+  - NetAddr::IP::Lite

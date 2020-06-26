@@ -1,0 +1,7 @@
+Name: Deploy::Erebus::Ipsec
+Description: Deploy erebus ipsec subsystem
+Author: ural
+License: Apache 2.0
+PerlRequire:
+  - Ural::Deploy::ReadDB_Erebus
+  - Ural::Deploy::Utils

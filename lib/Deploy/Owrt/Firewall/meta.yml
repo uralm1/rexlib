@@ -1,0 +1,7 @@
+Name: Deploy::Owrt::Firewall
+Description: Deploy routers firewall
+Author: ural
+License: Apache 2.0
+PerlRequire:
+  - Ural::Deploy::ReadDB_Owrt
+  - Ural::Deploy::Utils

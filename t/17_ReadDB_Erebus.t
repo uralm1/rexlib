@@ -6,7 +6,7 @@ use Test::Exception;
 
 use Rex;
 use Rex::Commands;
-use Ural::Deploy::ReadDB_base;
+use Ural::Deploy::ReadDB_base qw();
 use Ural::Deploy::ReadDB_Erebus;
 
 set cmdb => {

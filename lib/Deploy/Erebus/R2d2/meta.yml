@@ -1,0 +1,7 @@
+Name: Deploy::Erebus::R2d2
+Description: Deploy erebus r2d2 subsystem
+Author: ural
+License: Apache 2.0
+PerlRequire:
+  - Ural::Deploy::ReadDB_Erebus
+  - Ural::Deploy::Utils
