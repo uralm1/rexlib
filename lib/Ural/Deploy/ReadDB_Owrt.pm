@@ -14,6 +14,7 @@ use NetAddr::IP::Lite;
 
 use Carp;
 use Ural::Deploy::HostParamOwrt;
+use Ural::Deploy::Utils qw(remove_dups);
 use parent 'Ural::Deploy::ReadDB_base';
 
 use Exporter 'import';
@@ -257,13 +258,6 @@ WHERE t.vpn_type_id = 1");
     push @t_arr, $hr;
   }
   return \@t_arr;
-}
-
-
-sub remove_dups {
-  my $aref = shift;
-  my %seen;
-  return [grep { ! $seen{ $_ }++ } @$aref];
 }
 
 

@@ -5,45 +5,14 @@ use Rex::Commands::Cron;
 use Data::Dumper;
 use File::Basename;
 use NetAddr::IP::Lite;
-use feature 'state';
 
 use Ural::Deploy::ReadDB_Erebus qw(read_db);
+use Ural::Deploy::Utils qw(recursive_search_by_from_hostname recursive_search_by_to_hostname);
 
 my $def_net = 'UWC66';
 
+
 ### Helpers
-sub recursive_search_by_from_hostname {
-  my ($listref, $hostname, $tun_array_ref, $tun_node_name) = @_;
-
-  state $loop_control = 0;
-  die "Wrong tunnels configuration (reqursive infinite loop found).\n" if $loop_control++ >= 30;
-
-  my @tt1 = grep { $_->{from_hostname} eq $hostname } @$tun_array_ref;
-  foreach my $hh1 (@tt1) {
-    unless ((grep { $_ eq $hh1->{to_ip} } @$listref) || ($hh1->{to_hostname} eq $tun_node_name)) {
-      push @$listref, $hh1->{to_ip};
-      recursive_search_by_from_hostname($listref, $hh1->{to_hostname}, $tun_array_ref, $tun_node_name);
-    }
-  }
-}
-
-
-sub recursive_search_by_to_hostname {
-  my ($listref, $hostname, $tun_array_ref, $tun_node_name) = @_;
-
-  state $loop_control = 0;
-  die "Wrong tunnels configuration (reqursive infinite loop found).\n" if $loop_control++ >= 30;
-
-  my @tt1 = grep { $_->{to_hostname} eq $hostname } @$tun_array_ref;
-  foreach my $hh1 (@tt1) {
-    unless ((grep { $_ eq $hh1->{from_ip} } @$listref) || ($hh1->{from_hostname} eq $tun_node_name)) {
-      push @$listref, $hh1->{from_ip};
-      recursive_search_by_to_hostname($listref, $hh1->{from_hostname}, $tun_array_ref, $tun_node_name);
-    }
-  }
-}
-
-
 sub check_par {
   die "Unsupported operating system!\n" unless operating_system_is('OpenWrt');
   #say "OS version: ".operating_system_version();
