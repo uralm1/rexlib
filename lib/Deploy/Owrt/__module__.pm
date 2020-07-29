@@ -50,7 +50,7 @@ desc "OWRT routers: Show router information";
 task "show_router", sub {
   #dump_system_information;
   my %i = get_system_information;
-  #say Dumper \%info;
+  #say Dumper \%i;
   say "This is: $i{hostname}, $i{operating_system} system (arch: $i{architecture}), version: $i{operating_system_release}.";
   if (operating_system_is('OpenWrt')) {
     my $r = run "uci get system.\@system[0].hostname";

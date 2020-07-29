@@ -58,11 +58,12 @@ task "configure", sub {
   insert_autogen_comment '/etc/config/system';
 
   # tune sysctl
+  my $tpl_sysctl_file = (operating_system_version() > 113) ? 'files/sysctl.conf.0.tpl' : 'files/sysctl.conf.113.tpl';
   file "/etc/sysctl.conf",
     owner => "ural",
     group => "root",
     mode => 644,
-    content => template('files/sysctl.conf.0.tpl'),
+    content => template($tpl_sysctl_file),
     on_change => sub { say "sysctl parameters configured." };
 
   say 'System configuration finished for '.$p->get_host;
