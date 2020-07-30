@@ -63,7 +63,7 @@ task "configure", sub {
     owner => "ural",
     group => "root",
     mode => 644,
-    content => template($tpl_sysctl_file),
+    content => template($tpl_sysctl_file, _conntrack_max => is_x86() ? 131072 : 16384),
     on_change => sub { say "sysctl parameters configured." };
 
   say 'System configuration finished for '.$p->get_host;

@@ -25,7 +25,7 @@ net.bridge.bridge-nf-call-ip6tables=0
 net.bridge.bridge-nf-call-iptables=0
 
 net.ipv4.ip_local_port_range=8192 65535
-net.netfilter.nf_conntrack_max=16384
+net.netfilter.nf_conntrack_max=<%= $_conntrack_max %>
 net.netfilter.nf_conntrack_generic_timeout=300
 net.netfilter.nf_conntrack_tcp_timeout_syn_sent=60
 net.netfilter.nf_conntrack_tcp_timeout_syn_recv=60
