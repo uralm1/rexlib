@@ -40,6 +40,10 @@ task "deploy_srv", sub {
     Debian => ['debconf', 'debconf-utils', 'sudo', 'nftables', 'ulogd2', 'aptitude', 'mc', 'nagios-nrpe-server'],
     Ubuntu => ['debconf', 'debconf-utils', 'sudo', 'nftables', 'ulogd2', 'aptitude', 'mc', 'nagios-nrpe-server'],
   };
+  my $packages_rm = case operating_system, {
+    Debian => ['ufw', 'mlocate'],
+    Ubuntu => ['ufw', 'mlocate'],
+  };
   say "Updating package database...";
   update_package_db;
   say "Updating system...";
@@ -52,7 +56,7 @@ task "deploy_srv", sub {
     };
   say "Installing packages...";
   pkg $packages, ensure => 'present';
-  pkg 'ufw', ensure => 'absent';
+  pkg $packages_rm, ensure => 'absent';
 
 
   # switch to textmode
@@ -276,6 +280,28 @@ task "deploy_srv", sub {
     owner => 'ural',
     source => 'files/nftables.conf';
 
+  # nrpe
+  file '/etc/nagios/nrpe.cfg',
+    owner => 'root',
+    group => 'root',
+    mode => 644,
+    source => 'files/nrpe.cfg';
+  file '/etc/nagios/nrpe_local.cfg',
+    owner => 'root',
+    group => 'root',
+    mode => 644,
+    source => 'files/nrpe_local.cfg';
+  # https://github.com/kiranos/check_vg_size
+  file '/usr/lib/nagios/plugins/check_vg_size',
+    owner => 'root',
+    group => 'root',
+    mode => 755,
+    source => 'files/check_vg_size';
+
+
+  # cleaning
+  file '/etc/cron.d/popularity-contest', ensure=>'absent';
+  file '/etc/cron.daily/popularity-contest', ensure=>'absent';
   say "Cleaning apt cache...";
   run "apt clean";
 
