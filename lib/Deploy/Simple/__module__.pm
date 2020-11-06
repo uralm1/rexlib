@@ -172,7 +172,7 @@ task "deploy_srv", sub {
       {question=>"console-setup/fontsize-text$consetup_version", type=>'select', value=>'8x16'},
       {question=>'console-setup/fontsize', type=>'string', value=>'8x16'},
     ]);
-    my %opt = get_pkgconf('console-setup'); say Dumper \%opt;
+    #my %opt = get_pkgconf('console-setup'); say Dumper \%opt;
     file '/etc/default/console-setup', ensure=>'absent';
     run 'dpkg-reconfigure -f noninteractive console-setup';
     # fix improper FONTFACE
@@ -249,8 +249,16 @@ task "deploy_srv", sub {
   }
 
 
-  ####
+  # bacula client
+  file '/home/ural/bacula-client-uwc.deb',
+    source => 'files/bacula-client-uwc.deb';
+  ###
 
+  # recreate openssh host keys
+  run 'rm /etc/ssh/ssh_host_*;dpkg-reconfigure -f noninteractive openssh-server';
+  say "OpenSSH host keys recreated. May require cleaning known_hosts files!";
+
+  # done
   say "\nBasic server is configured. Set hostname in /etc/hostname and /etc/hosts. Expand root partition if needed.";
 
   return 0;

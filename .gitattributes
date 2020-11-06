@@ -8,3 +8,5 @@
 *.ttf binary
 *.zip binary
 *.tar.gz binary
+*.deb binary
+*.rpm binary
