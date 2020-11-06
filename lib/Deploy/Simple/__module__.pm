@@ -37,8 +37,8 @@ task "deploy_srv", sub {
 
   # install packages
   my $packages = case operating_system, {
-    Debian => ['debconf', 'debconf-utils', 'sudo','aptitude','mc'],
-    Ubuntu => ['debconf', 'debconf-utils', 'sudo','aptitude','mc'],
+    Debian => ['debconf', 'debconf-utils', 'sudo', 'nftables', 'ulogd2', 'aptitude', 'mc', 'nagios-nrpe-server'],
+    Ubuntu => ['debconf', 'debconf-utils', 'sudo', 'nftables', 'ulogd2', 'aptitude', 'mc', 'nagios-nrpe-server'],
   };
   say "Updating package database...";
   update_package_db;
@@ -53,8 +53,7 @@ task "deploy_srv", sub {
   say "Installing packages...";
   pkg $packages, ensure => 'present';
   pkg 'ufw', ensure => 'absent';
-  say "Cleaning apt cache...";
-  run "apt clean";
+
 
   # switch to textmode
   my $grub_cfg = '/etc/default/grub';
@@ -187,7 +186,7 @@ task "deploy_srv", sub {
 
   # user configuration
   for ('ural', 'av') {
-    say "Configuring local admin user: $_. Use passwd for the new user to assign password and enable it.";
+    say "Configuring user: $_. Use passwd for the new user to assign password and enable it.";
     Deploy::Simple::add_admin_user( {user => $_} );
   }
 
@@ -249,10 +248,36 @@ task "deploy_srv", sub {
   }
 
 
+  # nftables config
+  file "/etc/nftables.conf",
+    owner => 'root',
+    group => 'root',
+    mode => 755,
+    source => 'files/nftables.conf',
+    on_change => sub {
+      say "/etc/nftables.conf is updated. Firewall will be active after reboot.";
+    };
+
+
   # bacula client
-  file '/home/ural/bacula-client-uwc.deb',
+  %u = get_user('ural');
+  $home = $u{home};
+  unless (is_dir("$home")) {
+    die "$home directory is not found. Something get wrong.";
+  }
+  file "$home/bacula-client-uwc.deb",
+    owner => 'ural',
     source => 'files/bacula-client-uwc.deb';
-  ###
+  run "dpkg -i $home/bacula-client-uwc.deb";
+
+  # keep a copy nftables.conf
+  file "$home/nftables.conf",
+    mode => 755,
+    owner => 'ural',
+    source => 'files/nftables.conf';
+
+  say "Cleaning apt cache...";
+  run "apt clean";
 
   # recreate openssh host keys
   run 'rm /etc/ssh/ssh_host_*;dpkg-reconfigure -f noninteractive openssh-server';
