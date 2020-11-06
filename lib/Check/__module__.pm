@@ -172,29 +172,23 @@ WHERE r.host_name = ?", { Slice=>{} }, $host);
 
 =head1 NAME
 
-$::module_name - {{ SHORT DESCRIPTION }}
+$::Check - automated diagnostics and checks.
 
 =head1 DESCRIPTION
 
-{{ LONG DESCRIPTION }}
+Automated diagnostics and checks.
 
 =head1 USAGE
 
-{{ USAGE DESCRIPTION }}
-
- include qw/Check/;
-
- task yourtask => sub {
-    Check::example();
- };
+rex Check:diagnose --host=gwsouth2
 
 =head1 TASKS
 
 =over 4
 
-=item example
+=item diagnose --host=gwsouth2 [--email=ural@uwc.ufanet.ru] [--ticket] [--ticket_from=ural@uwc.ufanet.ru]
 
-This is an example Task. This task just output's the uptime of the system.
+Network link diagnostics.
 
 =back
 

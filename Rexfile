@@ -20,6 +20,7 @@ require Deploy::Erebus::Ipsec;
 require Deploy::Erebus::Tinc;
 require Deploy::Erebus::R2d2;
 require Deploy::Erebus::Snmp;
+require Deploy::Simple;
 require Deploy::Virt;
 require Check;
 require Virt;

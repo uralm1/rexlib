@@ -3,7 +3,6 @@ package Cert;
 use Rex -feature => ['1.3'];
 use Data::Dumper;
 
-# rex Cert:install --cert=/tmp/testcert.pem --key=/tmp/testkey.pem
 desc "Install ssl cert/key to /etc/ssl and restart web-servers";
 task install => sub {
   my $params = shift;
@@ -54,29 +53,23 @@ task install => sub {
 
 =head1 NAME
 
-$::module_name - {{ SHORT DESCRIPTION }}
+$::Cert - SSL certificate management.
 
 =head1 DESCRIPTION
 
-{{ LONG DESCRIPTION }}
+Manage (install new) SSL certificates on apache web server.
 
 =head1 USAGE
 
-{{ USAGE DESCRIPTION }}
-
- include qw/Cert/;
-
- task yourtask => sub {
-    Cert:example();
- };
+rex Cert:install --cert=/tmp/testcert.pem --key=/tmp/testkey.pem
 
 =head1 TASKS
 
 =over 4
 
-=item example
+=item install --cert=/tmp/testcert.pem --key=/tmp/testkey.pem
 
-This is an example Task. This task just output's the uptime of the system.
+Install ssl cert/key to /etc/ssl and restart web-servers.
 
 =back
 

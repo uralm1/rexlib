@@ -126,31 +126,57 @@ task "cleanup_known_hosts_deploy", sub {
 
 =pod
 
+=encoding utf-8
+
 =head1 NAME
 
-$::module_name - {{ SHORT DESCRIPTION }}
+$::UtilSSH - SSH configuration tasks
 
 =head1 DESCRIPTION
 
-{{ LONG DESCRIPTION }}
+Установка ключей SSH, очистка known_hosts.
 
 =head1 USAGE
 
-{{ USAGE DESCRIPTION }}
+Путь к устанавливаемому публичному ключу берется из cmdb public_key.
 
- include qw/UtilSSH/;
+Для OpenWrt:
+  rex -H 10.0.1.1 UtilSSH:install_openssh_sshkey
 
- task yourtask => sub {
-    UtilSSH::example();
- };
+В Slackware, для юзера ttt:
+  rex -u root -H 10.15.0.3 UtilSSH:install_openssh_user_sshkey --user=ttt
+
+Для Debian, просто заходим под существующим пользователем root, устанавливаем ключ для root:
+  rex -u ural -s -S sudo_password -H 10.14.73.27 UtilSSH:install_openssh_user_sshkey --user=root
+
+Для Ubuntu, используем существующего пользователя ural и делаем sudo, устанавливаем ключ для root.
+Затем команды rex можно будет запускать от пользователя root (rex -u root):
+  rex -u ural -s -S sudo_password -H 10.14.73.27 UtilSSH:install_openssh_user_sshkey --user=root
 
 =head1 TASKS
 
 =over 4
 
-=item example
+=item install_dropbear_sshkey
 
-This is an example Task. This task just output's the uptime of the system.
+Installs public key to Dropbear /etc/dropbear/authorized_keys, for OpenWrt.
+
+=item install_openssh_sshkey
+
+Installs public key to OpenSSH B<*global*> /etc/ssh/authorized_keys.
+
+=item install_openssh_user_sshkey --user=username
+
+Installs public key to OpenSSH B<*user*> ~/.ssh/authorized_keys.
+
+=item cleanup_known_hosts_ip
+
+Delete one IP address from openssh I<known_hosts> file for rundeck server.
+  rex cleanup_known_hosts_ip --ip=192.168.0.1";
+
+=item cleanup_known_hosts_deploy
+
+Delete deploy hosts (10.0.1.1, 10.0.1.2) from I<known_hosts> file for rundeck server.
 
 =back
 

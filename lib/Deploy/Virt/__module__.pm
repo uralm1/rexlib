@@ -36,20 +36,20 @@ task "deploy_hostsrv", sub {
   my $grub_cfg = '/etc/default/grub';
   my $f = 0;
   append_or_amend_line $grub_cfg,
-    line => "GRUB_CMDLINE_LINUX_DEFAULT=\"quiet nomodeset\"",
-    regexp => qr/^#?GRUB_CMDLINE_LINUX_DEFAULT/,
+    line => "GRUB_CMDLINE_LINUX_DEFAULT=\"nomodeset\"",
+    regexp => qr/^\s*GRUB_CMDLINE_LINUX_DEFAULT/,
     on_change => sub { $f = 1 };
   append_or_amend_line $grub_cfg,
     line => "GRUB_TERMINAL=console",
-    regexp => qr/^#?GRUB_TERMINAL/,
+    regexp => qr/^\s*GRUB_TERMINAL/,
     on_change => sub { $f = 1 };
   append_or_amend_line $grub_cfg,
     line => "GRUB_DISABLE_OS_PROBER=\"true\"",
-    regexp => qr/^#?GRUB_DISABLE_OS_PROBER/,
+    regexp => qr/^\s*GRUB_DISABLE_OS_PROBER/,
     on_change => sub { $f = 1 };
   append_or_amend_line $grub_cfg,
     line => "GRUB_GFXPAYLOAD_LINUX=text",
-    regexp => qr/^#?GRUB_GFXPAYLOAD_LINUX/,
+    regexp => qr/^\s*GRUB_GFXPAYLOAD_LINUX/,
     on_change => sub { $f = 1 };
     
   if ($f) { 
@@ -61,7 +61,7 @@ task "deploy_hostsrv", sub {
   # time sync
   append_or_amend_line "/etc/systemd/timesyncd.conf",
     line => "NTP=10.15.0.1",
-    regexp => qr/^#?NTP/,
+    regexp => qr/^\s*NTP/,
     on_change => sub {
       say "Time syncronization: /etc/systemd/timesyncd.conf updated."
     };
