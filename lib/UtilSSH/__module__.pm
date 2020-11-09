@@ -122,6 +122,24 @@ task "cleanup_known_hosts_deploy", sub {
 };
 
 
+desc "Delete one IP address from local root openssh known_hosts file
+  rex root_cleanup_known_hosts_ip --ip=192.168.0.1";
+task "root_cleanup_known_hosts_ip", sub {
+  my $_ip = shift->{ip};
+  unless ($_ip) {
+    die "Invalid task parameter, specify ip address.";
+  }
+  my $file_skh = '/root/.ssh/known_hosts';
+  #
+  say "Trying to delete stored key for $_ip...";
+
+  my $ip_pat = $_ip; $ip_pat =~ s/\./\\./g;
+  delete_lines_according_to qr/$ip_pat/, $file_skh, on_change => sub {
+    say "Key for $_ip has been deleted from local root known_hosts file.";
+  };
+};
+
+
 1;
 
 =pod
@@ -177,6 +195,11 @@ Delete one IP address from openssh I<known_hosts> file for rundeck server.
 =item cleanup_known_hosts_deploy
 
 Delete deploy hosts (10.0.1.1, 10.0.1.2) from I<known_hosts> file for rundeck server.
+
+=item root_cleanup_known_hosts_ip
+
+Delete one IP address from B<local root> openssh I<known_hosts> file.
+  rex root_cleanup_known_hosts_ip --ip=10.14.73.27";
 
 =back
 

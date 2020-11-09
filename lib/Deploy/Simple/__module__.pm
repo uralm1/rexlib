@@ -37,16 +37,16 @@ task "deploy_srv", sub {
 
   # install packages
   my $packages = case operating_system, {
-    Debian => ['debconf', 'debconf-utils', 'sudo', 'nftables', 'ulogd2', 'aptitude', 'mc', 'nagios-nrpe-server'],
-    Ubuntu => ['debconf', 'debconf-utils', 'sudo', 'nftables', 'ulogd2', 'aptitude', 'mc', 'nagios-nrpe-server'],
+    Debian => ['debconf', 'debconf-utils', 'sudo', 'nftables', 'ulogd2', 'aptitude', 'unattended-upgrades', 'mc', 'nagios-nrpe-server'],
+    Ubuntu => ['debconf', 'debconf-utils', 'sudo', 'nftables', 'ulogd2', 'aptitude', 'unattended-upgrades', 'mc', 'nagios-nrpe-server'],
   };
   my $packages_rm = case operating_system, {
     Debian => ['ufw', 'mlocate'],
     Ubuntu => ['ufw', 'mlocate'],
   };
-  say "Updating package database...";
+  say "Updating package database... Wait...";
   update_package_db;
-  say "Updating system...";
+  say "Updating system... Wait patiently (it depends on internet speed)...";
   update_system
     on_change => sub {
       my (@modified_packages) = @_;
@@ -58,6 +58,7 @@ task "deploy_srv", sub {
   pkg $packages, ensure => 'present';
   pkg $packages_rm, ensure => 'absent';
 
+  my $open_vm_tools_installed = is_installed('open-vm-tools');
 
   # switch to textmode
   my $grub_cfg = '/etc/default/grub';
@@ -165,7 +166,7 @@ task "deploy_srv", sub {
   if (is_installed('console-setup')) {
     say "Configuring console...";
     my $fontface = 'Terminus';
-    my $consetup_version = 47;
+    my $consetup_version = 47; # valid for ubuntu 1804, 2004, debian 10
     set_pkgconf('console-setup', [
       {question=>"console-setup/charmap$consetup_version", type=>'select', value=>'UTF-8'},
       {question=>"console-setup/codeset$consetup_version", type=>'select', value=>'Guess optimal character set'},
@@ -185,6 +186,24 @@ task "deploy_srv", sub {
 
   } else {
     say "WARNING: console-setup is not installed! No console is configured.";
+  }
+
+
+  # unattended-upgrades
+  if (is_installed('unattended-upgrades')) {
+    say "Disabling unattended-upgrades...";
+    #set_pkgconf('unattended-upgrades', [
+    #  {question=>"unattended-upgrades/enable_auto_updates", type=>'boolean', value=>'false'},
+    #]);
+    #my %opt = get_pkgconf('unattended-upgrades'); say Dumper \%opt;
+    #run 'dpkg-reconfigure -f noninteractive unattended-upgrades';
+    file '/etc/apt/apt.conf.d/20auto-upgrades',
+      owner => 'root',
+      group => 'root',
+      mode => 644,
+      source => 'files/20auto-upgrades-disabled';
+  } else {
+    say "WARNING: unattended-upgrades is not installed!";
   }
 
 
@@ -261,7 +280,10 @@ task "deploy_srv", sub {
     on_change => sub {
       say "/etc/nftables.conf is updated. Firewall will be active after reboot.";
     };
-
+  # switch to iptables-nft on ubuntu 20
+  if (operating_system_is('Ubuntu') && operating_system_version() > 1904) {
+    run 'update-alternatives --set iptables /usr/sbin/iptables-nft; update-alternatives --set ip6tables /usr/sbin/ip6tables-nft';
+  }
 
   # bacula client
   %u = get_user('ural');
@@ -310,7 +332,13 @@ task "deploy_srv", sub {
   say "OpenSSH host keys recreated. May require cleaning known_hosts files!";
 
   # done
-  say "\nBasic server is configured. Set hostname in /etc/hostname and /etc/hosts. Expand root partition if needed.";
+  say "\nBasic server is configured.";
+  say "Things to check:";
+  say "- Expand root partition if needed.";
+  say "- Set hostname in /etc/hostname and /etc/hosts.";
+  say "- Install open-vm-tools if necessary." unless $open_vm_tools_installed;
+  say "- Review and activate network configuration in /etc/netplan/99-config.yaml." if operating_system_is('Ubuntu');
+  say '';
 
   return 0;
 };
