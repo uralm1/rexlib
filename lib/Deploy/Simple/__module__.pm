@@ -13,7 +13,7 @@ task "deploy_srv", sub {
   say "Started on: $i{hostname}, $i{operating_system} system (arch: $i{architecture}), version: $i{operating_system_release}.";
   if (operating_system_is('Debian')) {
     #say operating_system_version();
-    die "Unsupported DEBIAN version\n" if operating_system_version() < 100;
+    die "Unsupported DEBIAN version\n" if operating_system_version() < 10;
   } elsif (operating_system_is('Ubuntu')) {
     #say operating_system_version();
     die "Unsupported UBUNTU version\n" if operating_system_version() < 1804;
@@ -37,12 +37,12 @@ task "deploy_srv", sub {
 
   # install packages
   my $packages = case operating_system, {
-    Debian => ['debconf', 'debconf-utils', 'sudo', 'nftables', 'ulogd2', 'aptitude', 'unattended-upgrades', 'mc', 'nagios-nrpe-server'],
-    Ubuntu => ['debconf', 'debconf-utils', 'sudo', 'nftables', 'ulogd2', 'aptitude', 'unattended-upgrades', 'mc', 'nagios-nrpe-server'],
+    qr{debian}i => ['debconf', 'debconf-utils', 'sudo', 'nftables', 'ulogd2', 'aptitude', 'unattended-upgrades', 'mc', 'nagios-nrpe-server'],
+    qr{ubuntu}i => ['debconf', 'debconf-utils', 'sudo', 'nftables', 'ulogd2', 'aptitude', 'unattended-upgrades', 'mc', 'nagios-nrpe-server'],
   };
   my $packages_rm = case operating_system, {
-    Debian => ['ufw', 'mlocate'],
-    Ubuntu => ['ufw', 'mlocate'],
+    qr{debian}i => ['ufw', 'mlocate'],
+    qr{ubuntu}i => ['ufw', 'mlocate'],
   };
   say "Updating package database... Wait...";
   update_package_db;
@@ -72,7 +72,7 @@ task "deploy_srv", sub {
     regexp => qr/^\s*GRUB_TERMINAL/,
     on_change => sub { $f = 1 };
   append_or_amend_line $grub_cfg,
-    line => "GRUB_DISABLE_OS_PROBER=\"true\"",
+    line => "GRUB_DISABLE_OS_PROBER=true",
     regexp => qr/^\s*GRUB_DISABLE_OS_PROBER/,
     on_change => sub { $f = 1 };
   append_or_amend_line $grub_cfg,
@@ -166,9 +166,10 @@ task "deploy_srv", sub {
   if (is_installed('console-setup')) {
     say "Configuring console...";
     my $fontface = 'Terminus';
-    my $consetup_version = 47; # valid for ubuntu 1804, 2004, debian 10
+    my $charmap = 'UTF-8';
+    my $consetup_version = 47; # valid for ubuntu1804,2004, debian10
     set_pkgconf('console-setup', [
-      {question=>"console-setup/charmap$consetup_version", type=>'select', value=>'UTF-8'},
+      {question=>"console-setup/charmap$consetup_version", type=>'select', value=>$charmap},
       {question=>"console-setup/codeset$consetup_version", type=>'select', value=>'Guess optimal character set'},
       {question=>'console-setup/codesetcode', type=>'string', value=>'guess'},
       {question=>"console-setup/fontface$consetup_version", type=>'select', value=>$fontface},
@@ -179,6 +180,10 @@ task "deploy_srv", sub {
     #my %opt = get_pkgconf('console-setup'); say Dumper \%opt;
     file '/etc/default/console-setup', ensure=>'absent';
     run 'dpkg-reconfigure -f noninteractive console-setup';
+    # fix improper CHARMAP in Debian
+    append_or_amend_line '/etc/default/console-setup',
+      line => "CHARMAP=\"$charmap\"",
+      regexp => qr/^\s*CHARMAP/;
     # fix improper FONTFACE
     append_or_amend_line '/etc/default/console-setup',
       line => "FONTFACE=\"$fontface\"",
@@ -255,17 +260,43 @@ task "deploy_srv", sub {
     }
   }
   if ($conf_iface->{dev}) {
-    say "Creating network template for $conf_iface->{dev}.";
-    file '/etc/netplan/99-config.yaml',
-      owner => 'root',
-      group => 'root',
-      mode => 644,
-      content => template("files/netplan.yaml.tpl", iface => $conf_iface),
-      on_change => sub {
-        say "/etc/netplan/99-config.yaml template is updated.";
-      };
+    if (operating_system_is('Ubuntu')) {
+      say "Creating network template for $conf_iface->{dev}.";
+      file '/etc/netplan/99-config.yaml',
+	owner => 'root',
+	group => 'root',
+	mode => 644,
+	content => template('files/netplan.yaml.tpl', iface => $conf_iface),
+	on_change => sub {
+	  say "/etc/netplan/99-config.yaml template is updated.";
+	};
       say "Network template /etc/netplan/99-config.yaml is created with IP address: $conf_iface->{ip}.";
-      say "Review template manually, uncomment, comment settings in other files."
+      say "Review template manually, uncomment, comment settings in other files.";
+
+    } elsif(operating_system_is('Debian')) {
+      say "Adding configuration to /etc/network/interfaces.new.";
+      file '/etc/network/interfaces.new',
+	owner => 'root',
+	group => 'root',
+	mode => 644,
+	content => template('files/interfaces.tpl', iface => $conf_iface),
+	on_change => sub {
+	  say "/etc/network/interfaces.new template is updated.";
+	};
+      file '/etc/resolv.conf.new',
+	owner => 'root',
+	group => 'root',
+	mode => 644,
+	source => 'files/resolv.conf',
+	on_change => sub {
+	  say "/etc/resolv.conf.new template is updated.";
+	};
+      say "Network settings are added to the /etc/network/interfaces.new. IP address is: $conf_iface->{ip}.";
+      say "Review interfaces.new/resolv.conf.new files manually.";
+
+    } else {
+      die "Unsupported operating system!\n";
+    }
   } else {
     say "Network physical interface wasn't found! No network configuration is performed."
   }
@@ -284,6 +315,7 @@ task "deploy_srv", sub {
   if (operating_system_is('Ubuntu') && operating_system_version() > 1904) {
     run 'update-alternatives --set iptables /usr/sbin/iptables-nft; update-alternatives --set ip6tables /usr/sbin/ip6tables-nft';
   }
+  run "systemctl enable nftables";
 
   # bacula client
   %u = get_user('ural');
@@ -334,10 +366,12 @@ task "deploy_srv", sub {
   # done
   say "\nBasic server is configured.";
   say "Things to check:";
-  say "- Expand root partition if needed.";
+  say "- Change root password (passwd root)." if operating_system_is('Debian');
+  say "- Expand root filesystem partition if needed.";
   say "- Set hostname in /etc/hostname and /etc/hosts.";
   say "- Install open-vm-tools if necessary." unless $open_vm_tools_installed;
-  say "- Review and activate network configuration in /etc/netplan/99-config.yaml." if operating_system_is('Ubuntu');
+  say "- Review and activate network configuration in the /etc/netplan/99-config.yaml." if operating_system_is('Ubuntu');
+  say "- Review and activate network configuration in the /etc/network/interfaces.new and /etc/resolv.conf.new." if operating_system_is('Debian');
   say '';
 
   return 0;
@@ -358,9 +392,15 @@ task "add_admin_user", sub {
     comment => "$login (local admin)",
     home => "/home/$login",
     create_home => TRUE,
-    groups => ['users', 'adm', 'sudo', 'cdrom', 'dip', 'plugdev'],
+    groups => ['users'],
     shell => '/bin/bash'
   );
+
+  # groups
+  $opts{groups} = case operating_system, {
+    qr{debian}i => ['users', 'adm', 'sudo', 'cdrom', 'floppy', 'audio', 'video', 'dip', 'plugdev', 'netdev'],
+    qr{ubuntu}i => ['users', 'adm', 'sudo', 'cdrom', 'dip', 'plugdev'],
+  };
 
   # new users are disabled
   $opts{crypt_password} = '!' unless $user_exists;

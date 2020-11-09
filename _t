@@ -15,4 +15,9 @@
 #rex -H 10.0.1.1 Deploy:Erebus:System:configure --confhost=erebus
 rex -H 192.168.12.3 Deploy:Erebus:deploy_router
 
+#rex UtilSSH:root_cleanup_known_hosts_ip --ip=10.14.73.27
+#rex -u ural -s -S test -H 10.14.73.27 UtilSSH:install_openssh_user_sshkey --user=root
+#rex -u root -H 10.14.73.27 UtilSSH:install_openssh_user_sshkey --user=root
+#rex -u root -H 10.14.73.27 Deploy:Simple:deploy_srv
+
 echo "Exit code: $?."

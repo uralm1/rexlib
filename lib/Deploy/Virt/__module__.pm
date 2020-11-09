@@ -44,7 +44,7 @@ task "deploy_hostsrv", sub {
     regexp => qr/^\s*GRUB_TERMINAL/,
     on_change => sub { $f = 1 };
   append_or_amend_line $grub_cfg,
-    line => "GRUB_DISABLE_OS_PROBER=\"true\"",
+    line => "GRUB_DISABLE_OS_PROBER=true",
     regexp => qr/^\s*GRUB_DISABLE_OS_PROBER/,
     on_change => sub { $f = 1 };
   append_or_amend_line $grub_cfg,
