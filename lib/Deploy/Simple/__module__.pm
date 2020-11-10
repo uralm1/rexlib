@@ -243,7 +243,7 @@ task "deploy_srv", sub {
   # sudo for me
   append_or_amend_line '/etc/sudoers',
     line => "ural	ALL=(ALL:ALL) NOPASSWD: ALL",
-    regexp => qr/^ural\sALL=/;
+    regexp => qr/^ural\s+ALL=/;
 
   # rundeck key for root
   my %u = get_user('root');
@@ -386,6 +386,7 @@ task "deploy_srv", sub {
   # recreate openssh host keys
   run 'rm /etc/ssh/ssh_host_*;dpkg-reconfigure -f noninteractive openssh-server';
   say "OpenSSH host keys recreated. May require cleaning known_hosts files!";
+  delete_lines_according_to qr/^\s*PermitRootLogin\s+yes/i, '/etc/ssh/sshd_config';
 
   # done
   say "\nBasic server is configured.";
