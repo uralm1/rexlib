@@ -15,3 +15,11 @@ mail_smtp: mailserver
 mail_from: 'user@mailserver'
 mail_ticket_to: 'ticket@mailserver'
 
+# default server deploy parameters
+deploy_ip: '192.168.0.1/24' 
+deploy_ip6: 'fc00:0:0::1:2:3/64'
+deploy_gateway: '192.168.0.10'
+deploy_gateway6: ''
+deploy_domain: 'domain.local'
+deploy_dns_servers: ['192.168.0.11', 'fc00:0:0::1:2:10']
+

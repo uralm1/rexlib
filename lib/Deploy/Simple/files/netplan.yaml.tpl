@@ -3,14 +3,13 @@
 #    <%= $iface->{dev} %>:
 #      addresses:
 #      - <%= $iface->{ip} %>
-#      - "<%= $iface->{ip6} %>"
-#     gateway4: <%= $iface->{gateway} %>
-#     gateway6: "<%= $iface->{gateway6} %>"
+<% if ($iface->{ip6}) { %>#      - "<%= $iface->{ip6} %>"<% } %>
+<% if ($iface->{gateway}) { %>#     gateway4: <%= $iface->{gateway} %><% } %>
+<% if ($iface->{gateway6}) { %>#     gateway6: "<%= $iface->{gateway6} %>"<% } %>
 #     nameservers:
 #       addresses:
-#       - 10.14.0.1
-#       - 10.14.0.2
-#       - "fc00:10:10::14:0:2"
-#       search:
-#       - uwc.local
+<% for my $s (@{ $iface->{dns_servers} }) { %>#       - "<%= $s %>"
+<% } %>
+<% if ($iface->{domain}) { %>#       search:
+#       - <%= $iface->{domain} %><% } %>
 #  version: 2

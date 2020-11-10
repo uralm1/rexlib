@@ -5,7 +5,7 @@ use Data::Dumper;
 #use Rex::Commands::LVM;
 
 
-desc "Deploy LXC virtualization host server";
+desc "Deploy LXC virtualization host server (deprecated)";
 task "deploy_hostsrv", sub {
   say "LXC virtualization host server deployment.";
   say "! Enable internet on the destination server.";
@@ -141,29 +141,27 @@ task "show_lvm", sub {
 
 =head1 NAME
 
-$::module_name - {{ SHORT DESCRIPTION }}
+$::Deploy::Virt - deploy virtualisation host servers
 
 =head1 DESCRIPTION
 
-{{ LONG DESCRIPTION }}
+Deploy virtualizetion host server.
 
 =head1 USAGE
 
 {{ USAGE DESCRIPTION }}
 
- include qw/Deploy::Virt/;
-
- task yourtask => sub {
-    Deploy::Virt::example();
- };
-
 =head1 TASKS
 
 =over 4
 
-=item example
+=item deploy_hostserv (deprecated)
 
-This is an example Task. This task just output's the uptime of the system.
+Deploy LXC virtualization host server (deprecated). Works only in Debian 9.
+
+=item show_lvm
+
+Display LVM configuration for host server.
 
 =back
 

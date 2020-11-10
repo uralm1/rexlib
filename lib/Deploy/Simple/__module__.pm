@@ -7,6 +7,7 @@ use Data::Dumper;
 
 desc "Deploy Debian/Ubuntu server";
 task "deploy_srv", sub {
+  my $hostname = shift->{hostname};
   say "Simple server deployment.";
   say "! Enable internet on the destination server.";
   my %i = get_system_information();
@@ -59,6 +60,25 @@ task "deploy_srv", sub {
   pkg $packages_rm, ensure => 'absent';
 
   my $open_vm_tools_installed = is_installed('open-vm-tools');
+
+  # set hostname
+  if ($hostname) {
+    say "Changing hostname to $hostname...";
+    file '/etc/hostname',
+      owner => 'root',
+      group => 'root',
+      mode => 644,
+      content => "$hostname\n",
+      on_change => sub {
+        say "/etc/hostname is updated.";
+      };
+    my $domain = get(cmdb('deploy_domain'));
+    my $l = ($domain) ? "$hostname.$domain	$hostname" : $hostname;
+    append_or_amend_line '/etc/hosts',
+      line => "127.0.1.1	$l",
+      regexp => qr/^\s*127.0.1.1/;
+  }
+
 
   # switch to textmode
   my $grub_cfg = '/etc/default/grub';
@@ -188,6 +208,8 @@ task "deploy_srv", sub {
     append_or_amend_line '/etc/default/console-setup',
       line => "FONTFACE=\"$fontface\"",
       regexp => qr/^\s*FONTFACE/;
+    # activate
+    run 'setupcon';
 
   } else {
     say "WARNING: console-setup is not installed! No console is configured.";
@@ -243,10 +265,12 @@ task "deploy_srv", sub {
   #say Dumper $net;
   my $conf_iface = {
       #dev => '',
-      ip => '10.14.73.11/10',
-      ip6 => 'fc00:10:10::14:73:11/64',
-      gateway => '10.15.0.1',
-      gateway6 => '',
+      ip => get(cmdb('deploy_ip')),
+      ip6 => get(cmdb('deploy_ip6')),
+      gateway => get(cmdb('deploy_gateway')),
+      gateway6 => get(cmdb('deploy_gateway6')),
+      domain => get(cmdb('deploy_domain')),
+      dns_servers => get(cmdb('deploy_dns_servers')),
   };
   foreach my $dev (sort @{$net->{networkdevices}}) {
     $dev eq 'lo' && next;
@@ -287,7 +311,7 @@ task "deploy_srv", sub {
 	owner => 'root',
 	group => 'root',
 	mode => 644,
-	source => 'files/resolv.conf',
+	content => template('files/resolv.conf.tpl', iface => $conf_iface),
 	on_change => sub {
 	  say "/etc/resolv.conf.new template is updated.";
 	};
@@ -368,7 +392,7 @@ task "deploy_srv", sub {
   say "Things to check:";
   say "- Change root password (passwd root)." if operating_system_is('Debian');
   say "- Expand root filesystem partition if needed.";
-  say "- Set hostname in /etc/hostname and /etc/hosts.";
+  say "- Set hostname in /etc/hostname and /etc/hosts." unless $hostname;
   say "- Install open-vm-tools if necessary." unless $open_vm_tools_installed;
   say "- Review and activate network configuration in the /etc/netplan/99-config.yaml." if operating_system_is('Ubuntu');
   say "- Review and activate network configuration in the /etc/network/interfaces.new and /etc/resolv.conf.new." if operating_system_is('Debian');
@@ -431,6 +455,8 @@ $::Deploy::Simple - deploy simple Debian/Ubuntu server.
 
 Устанавливаем сервер 10.14.73.27.
   rex -u root -H 10.14.73.27 Deploy:Simple:deploy_srv
+Устанавливаем сервер 10.14.73.27 с именем testserver.
+  rex -u root -H 10.14.73.27 Deploy:Simple:deploy_srv --hostname=testserver
 
 На сервере должен быть интернет!
 
@@ -438,9 +464,9 @@ $::Deploy::Simple - deploy simple Debian/Ubuntu server.
 
 =over 4
 
-=item deploy_srv
+=item deploy_srv [--hostname=testserver]
 
-Simple server deployment.
+Simple server deployment. Sets hostname if supplied.
 
 =item add_admin_user --user=testuser (hidden task)
 

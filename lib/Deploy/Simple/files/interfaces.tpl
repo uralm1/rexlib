@@ -11,9 +11,10 @@ iface lo inet loopback
 allow-hotplug <%= $iface->{dev} %>
 iface <%= $iface->{dev} %> inet static
   address <%= $iface->{ip} %>
-  gateway <%= $iface->{gateway} %>
+<% if ($iface->{gateway}) { %>  gateway <%= $iface->{gateway} %><% } %>
 
-iface <%= $iface->{dev} %> inet6 static
+<% if ($iface->{ip6}) { %>iface <%= $iface->{dev} %> inet6 static
   address <%= $iface->{ip6} %>
-#  gateway <%= $iface->{gateway6} %>
+<% if ($iface->{gateway6}) { %>  gateway <%= $iface->{gateway6} %><% } %>
+<% } %>
 
