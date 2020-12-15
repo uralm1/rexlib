@@ -158,8 +158,8 @@ task "configure", sub {
 	quci "delete dhcp.$_.dhcp_option";
 	#uci "add_list dhcp.$_.dhcp_option=\'3,192.168.33.81\'"; #router
 	uci "add_list dhcp.$_.dhcp_option=\'6,$ifs_r->{$_}{dhcp_dns}\'" if $ifs_r->{$_}{dhcp_dns}; #dns
-	uci "add_list dhcp.$_.dhcp_option=\'15,$ifs_r->{$_}{dhcp_dns_suffix}\'";
-	uci "add_list dhcp.$_.dhcp_option=\'44,$ifs_r->{$_}{dhcp_wins}\'"; #wins
+	uci "add_list dhcp.$_.dhcp_option=\'15,$ifs_r->{$_}{dhcp_dns_suffix}\'" if $ifs_r->{$_}{dhcp_dns_suffix};
+	uci "add_list dhcp.$_.dhcp_option=\'44,$ifs_r->{$_}{dhcp_wins}\'" if $ifs_r->{$_}{dhcp_wins}; #wins
 	uci "add_list dhcp.$_.dhcp_option=\'46,8\'";
       } else {
         # disable dhcp at all

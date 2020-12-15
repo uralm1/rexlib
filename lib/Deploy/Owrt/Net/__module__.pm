@@ -119,8 +119,8 @@ task "configure", sub {
   quci "delete dhcp.lan.dhcp_option";
   #uci "add_list dhcp.lan.dhcp_option=\'3,192.168.33.81\'"; #router
   uci "add_list dhcp.lan.dhcp_option=\'6,$p->{dhcp_dns}\'" if $p->{dhcp_dns}; #dns
-  uci "add_list dhcp.lan.dhcp_option=\'15,$p->{dhcp_dns_suffix}\'";
-  uci "add_list dhcp.lan.dhcp_option=\'44,$p->{dhcp_wins}\'"; #wins
+  uci "add_list dhcp.lan.dhcp_option=\'15,$p->{dhcp_dns_suffix}\'" if $p->{dhcp_dns_suffix};
+  uci "add_list dhcp.lan.dhcp_option=\'44,$p->{dhcp_wins}\'" if $p->{dhcp_wins}; #wins
   uci "add_list dhcp.lan.dhcp_option=\'46,8\'";
 
   quci "delete dhcp.\@host[-1]" foreach 0..9;
