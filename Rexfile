@@ -11,6 +11,7 @@ require Deploy::Owrt::System;
 require Deploy::Owrt::Net;
 require Deploy::Owrt::Firewall;
 require Deploy::Owrt::Tun;
+require Deploy::Owrt::R2d2;
 require Deploy::Erebus;
 require Deploy::Erebus::Software;
 require Deploy::Erebus::System;

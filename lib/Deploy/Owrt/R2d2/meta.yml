@@ -1,0 +1,7 @@
+Name: Deploy::Owrt::R2d2
+Description: Deploy router r2d2 gwsyn
+Author: ural
+License: Apache 2.0
+PerlRequire:
+  - Ural::Deploy::ReadDB_Owrt
+  - Ural::Deploy::Utils
