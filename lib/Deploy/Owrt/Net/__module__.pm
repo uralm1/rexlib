@@ -104,6 +104,8 @@ task "configure", sub {
   uci "set dhcp.\@dnsmasq[0].domain=\'$p->{dns_suffix}\'";
   quci "delete dhcp.\@dnsmasq[0].local";
   uci "set dhcp.\@dnsmasq[0].logqueries=0";
+  # add dhcphostfile option to /etc/config/dhcp
+  uci "set dhcp.\@dnsmasq[0].dhcphostsfile=\'/var/r2d2/dhcphosts.clients\'";
 
   uci "set dhcp.lan.start=\'$p->{dhcp_start}\'";
   uci "set dhcp.lan.limit=\'$p->{dhcp_limit}\'";
@@ -139,6 +141,14 @@ task "configure", sub {
   uci "commit dhcp";
   insert_autogen_comment '/etc/config/network';
   insert_autogen_comment '/etc/config/dhcp';
+
+  # patch /etc/init.d/dnsmasq to set --dhcphostsfile option always
+  sed qr{\[\s+-e\s+\"\$hostsfile\"\s+\]\s+&&\s+xappend},
+    'xappend',
+    '/etc/init.d/dnsmasq',
+    on_change => sub {
+      say '/etc/init.d/dnsmasq: dhcphostsfile processing is patched to set always.';
+    };
 
   say "\nNetwork configuration finished for $p->{host}. Restarting the router will change the IP-s and enable DHCP server on LAN!!!.\n";
 };

@@ -6,6 +6,12 @@ use Data::Dumper;
 use Ural::Deploy::ReadDB_Owrt;
 use Ural::Deploy::Utils qw(:DEFAULT is_x86);
 
+# Whats already done before for R2d2:
+# 1. (Deploy::Owrt::Firewall) Firewall configuration and chains is created in the /etc/firewall.user_r2d2 file.
+# 2. (Deploy::Owrt::Firewall) /etc/firewall.user_r2d2 and /var/r2d2/firewall.clients are included to firewall.
+# 3. (Deploy::Owrt::Net) /etc/init.d/dnsmasq is patched to set --dhcphostsfile option always. 
+# 4. (Deploy::Owrt::Net) dhcphostfile option /var/r2d2/dhcphosts.clients is added to /etc/config/dhcp.
+
 
 desc "OWRT routers: Configure r2d2";
 # --confhost=host parameter is required
@@ -19,21 +25,6 @@ task "configure", sub {
     return 255;
   }
   say 'R2d2 configuration started for '.$p->get_host;
-
-  # patch /etc/init.d/dnsmasq to set --dhcphostsfile option always
-  sed qr{\[\s+-e\s+\"\$hostsfile\"\s+\]\s+&&\s+xappend},
-    'xappend',
-    '/etc/init.d/dnsmasq',
-    on_change => sub {
-      say '/etc/init.d/dnsmasq: dhcphostsfile processing is patched.';
-    };
-
-  # add dhcphostfile option to /etc/config/dhcp
-  uci "revert dhcp";
-  uci "set dhcp.\@dnsmasq[0].dhcphostsfile=\'/var/r2d2/dhcphosts.clients\'";
-  #uci "show dhcp";
-  uci "commit dhcp";
-  say "/etc/config/dhcp is modified.";
 
   #for (qw/perl perlbase-encode perlbase-findbin perl-dbi perl-dbd-mysql perl-netaddr-ip perl-sys-runalone libmariadb/) {
   #  pkg $_, ensure => "present";

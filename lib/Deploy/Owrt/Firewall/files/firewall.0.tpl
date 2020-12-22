@@ -128,18 +128,5 @@ config rule
 	option proto all
 	option target ACCEPT
 
-config rule
-	option name tunnel-to-lan
-	option src vpn
-	option dest lan
-	option proto all
-	option target ACCEPT
-
-config rule
-	option name lan-to-tunnel
-	option src lan
-	option dest vpn
-	option proto all
-	option target ACCEPT
 ###################
 

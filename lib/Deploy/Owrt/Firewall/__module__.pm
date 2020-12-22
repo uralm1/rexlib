@@ -130,6 +130,18 @@ task "configure", sub {
     uci "set firewall.\@rule[-1].target=ACCEPT";
   }
 
+  # include r2d2 configuration file
+  uci "add firewall include";
+  uci "set firewall.\@include[-1].type=restore";
+  uci "set firewall.\@include[-1].path=\'/etc/firewall.user_r2d2\'";
+  uci "set firewall.\@include[-1].family=ipv4";
+
+  # include r2d2 client file
+  uci "add firewall include";
+  uci "set firewall.\@include[-1].type=restore";
+  uci "set firewall.\@include[-1].path=\'/var/r2d2/firewall.clients\'";
+  uci "set firewall.\@include[-1].family=ipv4";
+
   uci "add firewall include";
   uci "set firewall.\@include[-1].path=\'/etc/firewall.user\'";
 
@@ -137,7 +149,20 @@ task "configure", sub {
   uci "commit firewall";
   insert_autogen_comment '/etc/config/firewall';
 
-  file "/etc/firewall.user",
+  # R2d2 iptables_restore firewall.user_r2d2 file
+  file '/etc/firewall.user_r2d2',
+    owner => "ural",
+    group => "root",
+    mode => 644,
+    content => template("files/firewall.user_r2d2.0.tpl",
+      _client_net => '192.168.34.0/24',
+      _head_ip => '10.2.13.130'),
+    on_change => sub {
+      say "R2d2 configuration was added to /etc/firewall.user_r2d2.";
+    };
+ 
+  my $firewall_user_file = '/etc/firewall.user';
+  file $firewall_user_file,
     owner => "ural",
     group => "root",
     mode => 644,
