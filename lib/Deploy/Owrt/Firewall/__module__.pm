@@ -5,6 +5,7 @@ use Data::Dumper;
 
 use Ural::Deploy::ReadDB_Owrt;
 use Ural::Deploy::Utils qw(:DEFAULT recursive_search_by_from_hostname recursive_search_by_to_hostname);
+use NetAddr::IP::Lite;
 
 
 desc "OWRT routers: Configure firewall";
@@ -149,13 +150,16 @@ task "configure", sub {
   uci "commit firewall";
   insert_autogen_comment '/etc/config/firewall';
 
+  my $lan_addr = NetAddr::IP::Lite->new($p->{lan_ip}, $p->{lan_netmask}) or die 'Lan net address calculation failure';
+  #say "CIDR: ".$lan_addr->network->cidr;
+
   # R2d2 iptables_restore firewall.user_r2d2 file
   file '/etc/firewall.user_r2d2',
     owner => "ural",
     group => "root",
     mode => 644,
     content => template("files/firewall.user_r2d2.0.tpl",
-      _client_net => '192.168.34.0/24',
+      _client_net => $lan_addr->network->cidr,
       _head_ip => '10.2.13.130'),
     on_change => sub {
       say "R2d2 configuration was added to /etc/firewall.user_r2d2.";
