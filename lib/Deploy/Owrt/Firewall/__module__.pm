@@ -131,6 +131,9 @@ task "configure", sub {
     uci "set firewall.\@rule[-1].target=ACCEPT";
   }
 
+  uci "add firewall include";
+  uci "set firewall.\@include[-1].path=\'/etc/firewall.user\'";
+
   # include r2d2 configuration file
   uci "add firewall include";
   uci "set firewall.\@include[-1].type=restore";
@@ -144,7 +147,11 @@ task "configure", sub {
   uci "set firewall.\@include[-1].family=ipv4";
 
   uci "add firewall include";
-  uci "set firewall.\@include[-1].path=\'/etc/firewall.user\'";
+  uci "set firewall.\@include[-1].path=\'/etc/tc.user\'";
+
+  # include r2d2 shaper configuration file
+  uci "add firewall include";
+  uci "set firewall.\@include[-1].path=\'/etc/tc.user_r2d2\'";
 
   #uci "show firewall";
   uci "commit firewall";
@@ -160,9 +167,24 @@ task "configure", sub {
     mode => 644,
     content => template("files/firewall.user_r2d2.0.tpl",
       _client_net => $lan_addr->network->cidr,
-      _head_ip => '10.2.13.130'),
+      _head_ip => '10.2.13.130'
+    ),
     on_change => sub {
       say "R2d2 configuration was added to /etc/firewall.user_r2d2.";
+    };
+ 
+  # R2d2 traffic shaper tc.user_r2d2 file
+  file '/etc/tc.user_r2d2',
+    owner => "ural",
+    group => "root",
+    mode => 644,
+    content => template("files/tc.user_r2d2.0.tpl",
+      _lan_interface => 'br-lan',
+      _vpn_interface => 'vpn1',
+      _wan_interface => 'eth1'
+    ),
+    on_change => sub {
+      say "R2d2 shaper configuration was added to /etc/tc.user_r2d2.";
     };
  
   my $firewall_user_file = '/etc/firewall.user';
@@ -171,6 +193,13 @@ task "configure", sub {
     group => "root",
     mode => 644,
     content => template("files/firewall.user.0.tpl");
+
+  my $tc_user_file = '/etc/tc.user';
+  file $tc_user_file,
+    owner => "ural",
+    group => "root",
+    mode => 644,
+    content => template("files/tc.user.0.tpl");
 
   say 'Firewall configuration finished for '.$p->get_host;
 };

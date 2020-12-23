@@ -26,9 +26,15 @@ task "configure", sub {
   }
   say 'R2d2 configuration started for '.$p->get_host;
 
-  #for (qw/perl perlbase-encode perlbase-findbin perl-dbi perl-dbd-mysql perl-netaddr-ip perl-sys-runalone libmariadb/) {
-  #  pkg $_, ensure => "present";
-  #}
+  # install packages
+  say "Updating package database.";
+  update_package_db;
+  say "Installing / updating packages for R2d2.";
+  for (qw/tc kmod-sched perl/) {
+    #perlbase-encode perlbase-findbin perl-dbi perl-dbd-mysql perl-netaddr-ip perl-sys-runalone libmariadb
+    pkg $_, ensure => latest,
+      on_change => sub { say "package $_ was installed." };
+  }
 
   #file "/etc/r2d2",
   #  owner => "ural",
