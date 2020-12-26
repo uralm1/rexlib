@@ -4,56 +4,50 @@
 
 command -v tc >/dev/null || exit 1
 
-LAN_INTERFACE=<%= $_lan_interface %>
-VPN_INTERFACE=<%= $_vpn_interface %>
-WAN_INTERFACE=<%= $_wan_interface %>
+INTR_IF=<%= $_lan_interface %>
+EXTR_IF=<%= $_vpn_interface %>
 
-tc qdisc del dev $LAN_INTERFACE root 2>/dev/null
-tc qdisc del dev $VPN_INTERFACE root 2>/dev/null
+tc qdisc del dev $INTR_IF root 2>/dev/null
+tc qdisc del dev $EXTR_IF root 2>/dev/null
 
-tc qdisc add dev $LAN_INTERFACE root handle 1: htb r2q 80 default 9999
-tc qdisc add dev $VPN_INTERFACE root handle 1: htb r2q 80 default 9999
+tc qdisc add dev $INTR_IF root handle 1: htb r2q 80 default 9999
+tc qdisc add dev $EXTR_IF root handle 1: htb r2q 80 default 9999
 
 # roots
-tc class add dev $LAN_INTERFACE parent 1: classid 1:1 htb rate 50mbit prio 1
-tc class add dev $VPN_INTERFACE parent 1: classid 1:1 htb rate 50mbit prio 1
+tc class add dev $INTR_IF parent 1: classid 1:1 htb rate 50mbit prio 1
+tc class add dev $EXTR_IF parent 1: classid 1:1 htb rate 50mbit prio 1
 
 # internet parents
-tc class add dev $LAN_INTERFACE parent 1:1 classid 1:10 htb rate 7mbit ceil 10mbit prio 5
-tc class add dev $VPN_INTERFACE parent 1:1 classid 1:10 htb rate 7mbit ceil 10mbit prio 5
+tc class add dev $INTR_IF parent 1:1 classid 1:10 htb rate 7mbit ceil 10mbit prio 5
+tc class add dev $EXTR_IF parent 1:1 classid 1:10 htb rate 7mbit ceil 10mbit prio 5
 
 # internet default (highly limited)
-tc class add dev $LAN_INTERFACE parent 1:10 classid 1:9999 htb quantum 1600 rate 64kbit prio 10
-tc qdisc add dev $LAN_INTERFACE parent 1:9999 handle 9999: sfq perturb 10
+tc class add dev $INTR_IF parent 1:10 classid 1:9999 htb quantum 1600 rate 64kbit prio 10
+tc qdisc add dev $INTR_IF parent 1:9999 handle 9999: sfq perturb 10
 # move marked (FWMARK 2) internet clients packets to limited class
-tc filter add dev $LAN_INTERFACE parent 1:0 protocol ip pref 8 handle 2 fw flowid 1:9999
+tc filter add dev $INTR_IF parent 1:0 protocol ip pref 8 handle 2 fw flowid 1:9999
 
-tc class add dev $VPN_INTERFACE parent 1:10 classid 1:9999 htb quantum 1600 rate 64kbit prio 10
-tc qdisc add dev $VPN_INTERFACE parent 1:9999 handle 9999: sfq perturb 10
+tc class add dev $EXTR_IF parent 1:10 classid 1:9999 htb quantum 1600 rate 64kbit prio 10
+tc qdisc add dev $EXTR_IF parent 1:9999 handle 9999: sfq perturb 10
 # move marked (FWMARK 2) internet clients packets to limited class
-tc filter add dev $VPN_INTERFACE parent 1:0 protocol ip pref 8 handle 2 fw flowid 1:9999
+tc filter add dev $EXTR_IF parent 1:0 protocol ip pref 8 handle 2 fw flowid 1:9999
 
 # localnet
-tc class add dev $LAN_INTERFACE parent 1:1 classid 1:20 htb quantum 65536 rate 30mbit ceil 40mbit prio 1
-tc qdisc add dev $LAN_INTERFACE parent 1:20 handle 20: sfq perturb 10
-tc filter add dev $LAN_INTERFACE parent 1:0 protocol ip pref 5 u32 match ip src 192.168.0.0/16 flowid 1:20
-tc filter add dev $LAN_INTERFACE parent 1:0 protocol ip pref 5 u32 match ip src 10.0.0.0/8 flowid 1:20
-tc filter add dev $LAN_INTERFACE parent 1:0 protocol ip pref 5 u32 match ip src 172.16.0.0/12 flowid 1:20
-tc filter add dev $LAN_INTERFACE parent 1:0 protocol arp u32 match u32 0 0 flowid 1:20
+tc class add dev $INTR_IF parent 1:1 classid 1:20 htb quantum 65536 rate 30mbit ceil 40mbit prio 1
+tc qdisc add dev $INTR_IF parent 1:20 handle 20: sfq perturb 10
+tc filter add dev $INTR_IF parent 1:0 protocol ip pref 5 u32 match ip src 192.168.0.0/16 flowid 1:20
+tc filter add dev $INTR_IF parent 1:0 protocol ip pref 5 u32 match ip src 10.0.0.0/8 flowid 1:20
+tc filter add dev $INTR_IF parent 1:0 protocol ip pref 5 u32 match ip src 172.16.0.0/12 flowid 1:20
+tc filter add dev $INTR_IF parent 1:0 protocol arp u32 match u32 0 0 flowid 1:20
 
-tc class add dev $VPN_INTERFACE parent 1:1 classid 1:20 htb quantum 65536 rate 30mbit ceil 40mbit prio 1
-tc qdisc add dev $VPN_INTERFACE parent 1:20 handle 20: sfq perturb 10
-tc filter add dev $VPN_INTERFACE parent 1:0 protocol ip pref 5 u32 match ip dst 192.168.0.0/16 flowid 1:20
-tc filter add dev $VPN_INTERFACE parent 1:0 protocol ip pref 5 u32 match ip dst 10.0.0.0/8 flowid 1:20
-tc filter add dev $VPN_INTERFACE parent 1:0 protocol ip pref 5 u32 match ip dst 172.16.0.0/12 flowid 1:20
-tc filter add dev $VPN_INTERFACE parent 1:0 protocol arp u32 match u32 0 0 flowid 1:20
+tc class add dev $EXTR_IF parent 1:1 classid 1:20 htb quantum 65536 rate 30mbit ceil 40mbit prio 1
+tc qdisc add dev $EXTR_IF parent 1:20 handle 20: sfq perturb 10
+tc filter add dev $EXTR_IF parent 1:0 protocol ip pref 5 u32 match ip dst 192.168.0.0/16 flowid 1:20
+tc filter add dev $EXTR_IF parent 1:0 protocol ip pref 5 u32 match ip dst 10.0.0.0/8 flowid 1:20
+tc filter add dev $EXTR_IF parent 1:0 protocol ip pref 5 u32 match ip dst 172.16.0.0/12 flowid 1:20
+tc filter add dev $EXTR_IF parent 1:0 protocol arp u32 match u32 0 0 flowid 1:20
 
-### client example ###
-tc class add dev $LAN_INTERFACE parent 1:10 classid 1:300 htb quantum 6400 rate 256kbit prio 5
-tc qdisc add dev $LAN_INTERFACE parent 1:300 handle 300: pfifo limit 100
-tc filter add dev $LAN_INTERFACE parent 1:0 protocol ip pref 10 u32 match ip dst 192.168.34.20 flowid 1:300
-
-tc class add dev $VPN_INTERFACE parent 1:10 classid 1:300 htb quantum 6400 rate 256kbit prio 5
-tc qdisc add dev $VPN_INTERFACE parent 1:300 handle 300: pfifo limit 100
-tc filter add dev $VPN_INTERFACE parent 1:0 protocol ip pref 10 u32 match ip src 192.168.34.20 flowid 1:300
-
+# load autogenerated client classes
+if test -f /var/r2d2/traf.clients; then
+. /var/r2d2/traf.clients
+fi
