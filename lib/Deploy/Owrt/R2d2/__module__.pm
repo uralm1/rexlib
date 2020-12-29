@@ -31,8 +31,10 @@ task "configure", sub {
   say "Updating package database.";
   update_package_db;
   say "Installing / updating packages for R2d2.";
-  for (qw/tc kmod-sched perl make perlbase-extutils perlbase-version/) {
-    #perlbase-encode perlbase-findbin perl-netaddr-ip 
+  for (qw/tc kmod-sched perl make perlbase-extutils perlbase-version
+    perl-mojolicious perl-ev perl-cpanel-json-xs perl-io-socket-ssl
+    perl-mojo-sqlite perl-sql-abstract
+    perl-minion perl-minion-backend-sqlite/) {
     pkg $_, ensure => latest,
       on_change => sub { say "package $_ was installed." };
   }
@@ -71,10 +73,53 @@ task "configure", sub {
   file "/tmp/src",
     ensure => "absent";
 
-  for (qw/make perlbase-extutils perlbase-version/) {
+  for (qw/make/) {
     pkg $_, ensure => absent,
       on_change => sub { say "package $_ was removed." };
   }
+
+  # copy keys (3)
+  my $h = $p->get_host;
+  for ('ca.pem', "$h-cert.pem", "$h-key.pem") {
+    file "/etc/r2d2/$_",
+      owner => "ural",
+      group => "root",
+      mode => 644,
+      source => "files/$_",
+      on_change => sub { say "r2d2 key $_ was installed." };
+  }
+
+  # change keys in config
+  my $cfg = '/etc/r2d2/gwsyn.conf';
+  append_or_amend_line $cfg,
+    line => "  local_cert => '$h-cert.pem',",
+    regexp => qr{^\s*local_cert},
+    on_change => sub { say "config file changed for $h local_cert." };
+  append_or_amend_line $cfg,
+    line => "  local_key => '$h-key.pem',",
+    regexp => qr{^\s*local_key},
+    on_change => sub { say "config file changed for $h local_key." };
+  append_or_amend_line $cfg,
+    line => "  ca => 'ca.pem',",
+    regexp => qr{^\s*ca\s*=>},
+    on_change => sub { say "config file changed for ca." };
+
+  # head url
+  append_or_amend_line $cfg,
+    line => "  head_url => 'https://10.2.13.130:2271',",
+    regexp => qr{^\s*head_url},
+    on_change => sub { say "config file changed for head_url." };
+
+  # copy service scripts
+  for ('gwsyn', 'gwsyn-minion', 'gwsyn-cron') {
+    file "/etc/init.d/$_",
+      owner => "ural",
+      group => "root",
+      mode => 755,
+      source => "files/$_",
+      on_change => sub { say "r2d2 service script $_ was installed." };
+  }
+  # TODO enable services
 
   say 'R2d2 configuration finished for '.$p->get_host;
 };
