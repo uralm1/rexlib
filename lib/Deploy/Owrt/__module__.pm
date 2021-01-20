@@ -98,7 +98,7 @@ task "deploy_router", sub {
 task "_t", sub {
   my $p = read_db 'gwsouth2';
   #my $p = read_db 'gwtest1';
-  check_par_old;
+  #check_par_old;
   $p->dump;
 
 }, {dont_register => TRUE};

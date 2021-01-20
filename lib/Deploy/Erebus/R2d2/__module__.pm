@@ -8,7 +8,7 @@ use Ural::Deploy::ReadDB_Erebus;
 use Ural::Deploy::Utils;
 
 
-desc "Erebus router: Configure r2d2";
+desc "Erebus router: Configure r2d2 (install rtsyn)";
 # --confhost=erebus is required
 task "configure", sub {
   my $ch = shift->{confhost};
@@ -75,29 +75,26 @@ task "configure", sub {
 
 =head1 NAME
 
-$::module_name - {{ SHORT DESCRIPTION }}
+$::Deploy::Erebus::R2d2 - Install R2d2 rtsyn agent on Erebus router.
 
 =head1 DESCRIPTION
 
-{{ LONG DESCRIPTION }}
+Installs R2d2 rtsyn agent on Erebus router. Latest source tar, keys and config must be
+placed in the files directory.
 
 =head1 USAGE
 
-{{ USAGE DESCRIPTION }}
+<copy latest gwsyn source tar, keys, certs, config to the files/ directory>
 
- include qw/Deploy::Erebus::R2d2/;
-
- task yourtask => sub {
-    Deploy::Erebus::R2d2::example();
- };
+rex -H 192.168.12.3 Deploy::Erebus::R2d2::configure --confhost=erebus
 
 =head1 TASKS
 
 =over 4
 
-=item example
+=item configure --confhost=erebus
 
-This is an example Task. This task just output's the uptime of the system.
+Install R2d2 rtsyn agent.
 
 =back
 

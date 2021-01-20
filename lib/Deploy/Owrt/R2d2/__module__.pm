@@ -14,7 +14,7 @@ use Ural::Deploy::Utils qw(:DEFAULT is_x86);
 # 4. (Deploy::Owrt::Net) dhcphostfile option /var/r2d2/dhcphosts.clients is added to /etc/config/dhcp.
 
 
-desc "OWRT routers: Configure r2d2";
+desc "OWRT routers: Configure r2d2 (install gwsyn)";
 # --confhost=host parameter is required
 task "configure", sub {
   my $ch = shift->{confhost};
@@ -27,13 +27,22 @@ task "configure", sub {
   }
   say 'R2d2 configuration started for '.$p->get_host;
 
+  # try to stop services
+  for ('gwsyn', 'gwsyn-minion', 'gwsyn-cron') {
+    if (is_file("/etc/init.d/$_")) {
+      say "Stopping $_ service.";
+      my $output = run "/etc/init.d/$_ stop 2>&1", timeout => 100;
+      say $output if $output;
+    }
+  }
+
   # install packages
   say "Updating package database.";
   update_package_db;
   say "Installing / updating packages for R2d2.";
   for (qw/tc kmod-sched perl make perlbase-extutils perlbase-version
     perl-mojolicious perl-ev perl-cpanel-json-xs perl-io-socket-ssl
-    perl-mojo-sqlite perl-sql-abstract
+    perl-algorithm-cron perl-mojo-sqlite
     perl-minion perl-minion-backend-sqlite/) {
     pkg $_, ensure => latest,
       on_change => sub { say "package $_ was installed." };
@@ -92,23 +101,24 @@ task "configure", sub {
   # change keys in config
   my $cfg = '/etc/r2d2/gwsyn.conf';
   append_or_amend_line $cfg,
-    line => "  local_cert => '$h-cert.pem',",
+    line => "  local_cert => '/etc/r2d2/$h-cert.pem',",
     regexp => qr{^\s*local_cert},
     on_change => sub { say "config file changed for $h local_cert." };
   append_or_amend_line $cfg,
-    line => "  local_key => '$h-key.pem',",
+    line => "  local_key => '/etc/r2d2/$h-key.pem',",
     regexp => qr{^\s*local_key},
     on_change => sub { say "config file changed for $h local_key." };
   append_or_amend_line $cfg,
-    line => "  ca => 'ca.pem',",
+    line => "  ca => '/etc/r2d2/ca.pem',",
     regexp => qr{^\s*ca\s*=>},
     on_change => sub { say "config file changed for ca." };
 
   # head url
+  die "FATAL ERROR: R2d2 HEAD ip is not set!" unless $p->{r2d2_head_ip};
   append_or_amend_line $cfg,
-    line => "  head_url => 'https://10.2.13.130:2271',",
+    line => "  head_url => 'https://$p->{r2d2_head_ip}:2271',",
     regexp => qr{^\s*head_url},
-    on_change => sub { say "config file changed for head_url." };
+    on_change => sub { say "config file changed for head_url $p->{r2d2_head_ip}." };
 
   # copy service scripts
   for ('gwsyn', 'gwsyn-minion', 'gwsyn-cron') {
@@ -119,7 +129,17 @@ task "configure", sub {
       source => "files/$_",
       on_change => sub { say "r2d2 service script $_ was installed." };
   }
-  # TODO enable services
+
+  # enable services
+  for ('gwsyn', 'gwsyn-minion', 'gwsyn-cron') {
+    if (is_file("/etc/init.d/$_")) {
+      say "Enabling $_ service.";
+      my $output = run "/etc/init.d/$_ enable 2>&1", timeout => 100;
+      say $output if $output;
+    } else {
+      die "Fatal: can not find $_ service!\n";
+    }
+  }
 
   say 'R2d2 configuration finished for '.$p->get_host;
 };
@@ -131,29 +151,48 @@ task "configure", sub {
 
 =head1 NAME
 
-$::module_name - {{ SHORT DESCRIPTION }}
+$::Deploy::Owrt::R2d2 - Install R2d2 gwsyn agent on Owrt router.
 
 =head1 DESCRIPTION
 
-{{ LONG DESCRIPTION }}
+Installs R2d2 gwsyn agent on Owrt router. Latest source tar, keys and config must be
+placed in the files directory.
 
 =head1 USAGE
 
-{{ USAGE DESCRIPTION }}
+Copy latest gwsyn source tar, keys, certs, config to the files/ directory.
 
- include qw/Deploy::Owrt::R2d2/;
+Files that should be placed in the files/ directory:
 
- task yourtask => sub {
-    Deploy::Owrt::R2d2::example();
- };
+=over 4
+
+=item gwsyn-latest.tar.gz - source tar
+
+=item ca.pem - CA SSL certificate
+
+=item <confhost>-cert.pem - host SSL certificate
+
+=item <confhost>-key.pem - host SSL private key
+
+=item gwsyn - startup script for main gwsyn daemon
+
+=item gwsyn-minion - startup script for minion process
+
+=item gwsyn-cron - startup script for cron process
+
+=back
+
+Run the task:
+
+rex -H 192.168.34.1 Deploy::Owrt::R2d2::configure --confhost=gwtest1
 
 =head1 TASKS
 
 =over 4
 
-=item example
+=item configure --confhost=gwtest1
 
-This is an example Task. This task just output's the uptime of the system.
+Install R2d2 gwsyn agent.
 
 =back
 

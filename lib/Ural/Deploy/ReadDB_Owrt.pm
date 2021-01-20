@@ -76,7 +76,17 @@ ln.dhcp_leasetime AS dhcp_leasetime, \
 ln.dhcp_dns AS dhcp_dns, \
 ln.dhcp_dns_suffix AS dhcp_dns_suffix, \
 ln.dhcp_wins AS dhcp_wins, \
-ln.dhcp_static_leases AS dhcp_static_leases_unparsed \
+ln.dhcp_static_leases AS dhcp_static_leases_unparsed, \
+routers.r2d2_head_ip AS r2d2_head_ip, \
+rs.name AS r2d2_speed_name, \
+rs.glob_speed_in AS r2d2_glob_speed_in, \
+rs.glob_speed_out AS r2d2_glob_speed_out, \
+rs.loc_speed_in AS r2d2_loc_speed_in, \
+rs.loc_speed_out AS r2d2_loc_speed_out, \
+rs.inet_speed_in AS r2d2_inet_speed_in, \
+rs.inet_speed_out AS r2d2_inet_speed_out, \
+rs.limited_speed_in AS r2d2_limited_speed_in, \
+rs.limited_speed_out AS r2d2_limited_speed_out \
 FROM routers \
 INNER JOIN interfaces wans ON wans.router_id = routers.id AND wans.type = 1 \
 INNER JOIN nets wn ON wn.id = wans.net_id \
@@ -84,6 +94,7 @@ INNER JOIN interfaces lans ON lans.router_id = routers.id AND lans.type = 2 \
 INNER JOIN nets ln ON ln.id = lans.net_id \
 LEFT OUTER JOIN router_equipment ON router_equipment.id = routers.equipment_id \
 LEFT OUTER JOIN departments ON departments.id = routers.placement_dept_id \
+LEFT OUTER JOIN r2d2_speeds rs ON rs.id = routers.r2d2_speed_id \
 WHERE host_name = ?", {}, $host);
   croak "There's no such host in the database, or database error.\n" unless $hr;
   #say Dumper $hr;

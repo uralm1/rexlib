@@ -312,29 +312,23 @@ task "restart", sub {
 
 =head1 NAME
 
-$::module_name - {{ SHORT DESCRIPTION }}
+$::Deploy::Erebus::Firewall - Configure firewall on Erebus router.
 
 =head1 DESCRIPTION
 
-{{ LONG DESCRIPTION }}
+Configures firewall on Erebus Router.
 
 =head1 USAGE
 
-{{ USAGE DESCRIPTION }}
-
- include qw/Deploy::Erebus::Firewall/;
-
- task yourtask => sub {
-    Deploy::Erebus::Firewall::example();
- };
+rex -H 192.168.12.3 Deploy::Erebus::Firewall::configure --confhost=erebus
 
 =head1 TASKS
 
 =over 4
 
-=item example
+=item configure --confhost=erebus
 
-This is an example Task. This task just output's the uptime of the system.
+Configures firewall on Erebus Router.
 
 =back
 

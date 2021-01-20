@@ -167,10 +167,11 @@ task "configure", sub {
     mode => 644,
     content => template("files/firewall.user_r2d2.0.tpl",
       _client_net => $lan_addr->network->cidr,
-      _head_ip => '10.2.13.130'
+      _r2d2_head_ip => $p->{r2d2_head_ip}
     ),
     on_change => sub {
       say "R2d2 configuration was added to /etc/firewall.user_r2d2.";
+      say "HEAD access granted to $p->{r2d2_head_ip}." if $p->{r2d2_head_ip};
     };
  
   # R2d2 traffic shaper tc.user_r2d2 file
@@ -181,10 +182,18 @@ task "configure", sub {
     content => template("files/tc.user_r2d2.0.tpl",
       _lan_interface => 'br-lan',
       _vpn_interface => 'vpn1',
-      _wan_interface => 'eth1'
+      _r2d2_glob_speed_in => $p->{r2d2_glob_speed_in},
+      _r2d2_glob_speed_out => $p->{r2d2_glob_speed_out},
+      _r2d2_loc_speed_in => $p->{r2d2_loc_speed_in},
+      _r2d2_loc_speed_out => $p->{r2d2_loc_speed_out},
+      _r2d2_inet_speed_in => $p->{r2d2_inet_speed_in},
+      _r2d2_inet_speed_out => $p->{r2d2_inet_speed_out},
+      _r2d2_limited_speed_in => $p->{r2d2_limited_speed_in},
+      _r2d2_limited_speed_out => $p->{r2d2_limited_speed_out},
     ),
     on_change => sub {
       say "R2d2 shaper configuration was added to /etc/tc.user_r2d2.";
+      say "Traffic speed group: $p->{r2d2_speed_name}" if $p->{r2d2_speed_name};
     };
  
   my $firewall_user_file = '/etc/firewall.user';
@@ -211,29 +220,23 @@ task "configure", sub {
 
 =head1 NAME
 
-$::module_name - {{ SHORT DESCRIPTION }}
+$::Deploy::Owrt::Firewall - Configure firewall on Owrt router.
 
 =head1 DESCRIPTION
 
-{{ LONG DESCRIPTION }}
+Configures firewall on Owrt Router and installs r2d2 adapter module for gwsyn integration.
 
 =head1 USAGE
 
-{{ USAGE DESCRIPTION }}
-
- include qw/Deploy::Owrt::Firewall/;
-
- task yourtask => sub {
-    Deploy::Owrt::Firewall::example();
- };
+rex -H 192.168.34.1 Deploy::Owrt::Firewall::configure --confhost=gwtest1
 
 =head1 TASKS
 
 =over 4
 
-=item example
+=item configure --confhost=gwtest1
 
-This is an example Task. This task just output's the uptime of the system.
+Configures firewall on Owrt Router and installs r2d2 adapter module for gwsyn integration.
 
 =back
 

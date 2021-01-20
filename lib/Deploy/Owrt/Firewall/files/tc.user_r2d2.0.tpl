@@ -14,33 +14,33 @@ tc qdisc add dev $INTR_IF root handle 1: htb r2q 80 default 9999
 tc qdisc add dev $EXTR_IF root handle 1: htb r2q 80 default 9999
 
 # roots
-tc class add dev $INTR_IF parent 1: classid 1:1 htb rate 50mbit prio 1
-tc class add dev $EXTR_IF parent 1: classid 1:1 htb rate 50mbit prio 1
+tc class add dev $INTR_IF parent 1: classid 1:1 htb <%= $_r2d2_glob_speed_in || 'rate 10mbit prio 1' %>
+tc class add dev $EXTR_IF parent 1: classid 1:1 htb <%= $_r2d2_glob_speed_out || 'rate 10mbit prio 1' %>
 
 # internet parents
-tc class add dev $INTR_IF parent 1:1 classid 1:10 htb rate 7mbit ceil 10mbit prio 5
-tc class add dev $EXTR_IF parent 1:1 classid 1:10 htb rate 7mbit ceil 10mbit prio 5
+tc class add dev $INTR_IF parent 1:1 classid 1:10 htb <%= $_r2d2_inet_speed_in || 'rate 2mbit prio 5' %>
+tc class add dev $EXTR_IF parent 1:1 classid 1:10 htb <%= $_r2d2_inet_speed_out || 'rate 2mbit prio 5' %>
 
 # internet default (highly limited)
-tc class add dev $INTR_IF parent 1:10 classid 1:9999 htb quantum 1600 rate 64kbit prio 10
+tc class add dev $INTR_IF parent 1:10 classid 1:9999 htb <%= $_r2d2_limited_speed_in || 'quantum 1600 rate 64kbit prio 10' %>
 tc qdisc add dev $INTR_IF parent 1:9999 handle 9999: sfq perturb 10
 # move marked (FWMARK 2) internet clients packets to limited class
 tc filter add dev $INTR_IF parent 1:0 protocol ip pref 8 handle 2 fw flowid 1:9999
 
-tc class add dev $EXTR_IF parent 1:10 classid 1:9999 htb quantum 1600 rate 64kbit prio 10
+tc class add dev $EXTR_IF parent 1:10 classid 1:9999 htb <%= $_r2d2_limited_speed_out || 'quantum 1600 rate 64kbit prio 10' %>
 tc qdisc add dev $EXTR_IF parent 1:9999 handle 9999: sfq perturb 10
 # move marked (FWMARK 2) internet clients packets to limited class
 tc filter add dev $EXTR_IF parent 1:0 protocol ip pref 8 handle 2 fw flowid 1:9999
 
 # localnet
-tc class add dev $INTR_IF parent 1:1 classid 1:20 htb quantum 65536 rate 30mbit ceil 40mbit prio 1
+tc class add dev $INTR_IF parent 1:1 classid 1:20 htb <%= $_r2d2_loc_speed_in || 'quantum 65536 rate 9mbit prio 1' %>
 tc qdisc add dev $INTR_IF parent 1:20 handle 20: sfq perturb 10
 tc filter add dev $INTR_IF parent 1:0 protocol ip pref 5 u32 match ip src 192.168.0.0/16 flowid 1:20
 tc filter add dev $INTR_IF parent 1:0 protocol ip pref 5 u32 match ip src 10.0.0.0/8 flowid 1:20
 tc filter add dev $INTR_IF parent 1:0 protocol ip pref 5 u32 match ip src 172.16.0.0/12 flowid 1:20
 tc filter add dev $INTR_IF parent 1:0 protocol arp u32 match u32 0 0 flowid 1:20
 
-tc class add dev $EXTR_IF parent 1:1 classid 1:20 htb quantum 65536 rate 30mbit ceil 40mbit prio 1
+tc class add dev $EXTR_IF parent 1:1 classid 1:20 htb <%= $_r2d2_loc_speed_out || 'quantum 65536 rate 9mbit prio 1' %>
 tc qdisc add dev $EXTR_IF parent 1:20 handle 20: sfq perturb 10
 tc filter add dev $EXTR_IF parent 1:0 protocol ip pref 5 u32 match ip dst 192.168.0.0/16 flowid 1:20
 tc filter add dev $EXTR_IF parent 1:0 protocol ip pref 5 u32 match ip dst 10.0.0.0/8 flowid 1:20

@@ -76,29 +76,31 @@ task "configure", sub {
 
 =head1 NAME
 
-$::module_name - {{ SHORT DESCRIPTION }}
+$::Deploy::Erebus::System - Configure system parameters on Erebus router.
 
 =head1 DESCRIPTION
 
-{{ LONG DESCRIPTION }}
+Configure system parameters on Erebus router.
 
 =head1 USAGE
 
-{{ USAGE DESCRIPTION }}
+rex -H 192.168.12.3 Deploy::Erebus::System::configure --confhost=erebus
 
- include qw/Deploy::Erebus::System/;
+but better use full configuration task:
 
- task yourtask => sub {
-    Deploy::Erebus::System::example();
- };
+rex -H 192.168.12.3 Deploy::Erebus::deploy_router --confhost=erebus
+
+or just
+
+rex -H 192.168.12.3 Deploy::Erebus::deploy_router
 
 =head1 TASKS
 
 =over 4
 
-=item example
+=item configure --confhost=erebus
 
-This is an example Task. This task just output's the uptime of the system.
+Configure system parameters on Erebus router task.
 
 =back
 

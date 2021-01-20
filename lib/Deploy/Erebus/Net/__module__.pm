@@ -205,7 +205,7 @@ task "configure", sub {
 
 
 ##################################
-desc "Erebus router: reload network (useful after updating routes or dhcp)";
+desc "Erebus router: reload network (sometimes doesnt apply all :)";
 task "reload", sub {
   say "Reloading network configuration on host ".connection->server." ...";
   #service network => 'reload';
@@ -215,35 +215,48 @@ task "reload", sub {
 };
 
 
+desc "Erebus router: restart network (useful after updating routes or dhcp)";
+task "restart", sub {
+  say "Restarting network configuration on host ".connection->server." ...";
+  #service network => 'restart';
+  my $output = run "/etc/init.d/network restart 2>&1", timeout => 100;
+  say $output if $output;
+  return (($? > 0) ? 255:0);
+};
+
 1;
 
 =pod
 
 =head1 NAME
 
-$::module_name - {{ SHORT DESCRIPTION }}
+$::Deploy::Erebus::Net - Network confuguration for Erebus
 
 =head1 DESCRIPTION
 
-{{ LONG DESCRIPTION }}
+Module for Network configuration routines for Erebus.
 
 =head1 USAGE
 
-{{ USAGE DESCRIPTION }}
+rex -H 192.168.12.3 Deploy::Erebus::Net::configure --confhost=erebus
 
- include qw/Deploy::Erebus::Net/;
-
- task yourtask => sub {
-    Deploy::Erebus::Net::example();
- };
+rex -H 192.168.12.3 Deploy::Erebus::Net::restart
 
 =head1 TASKS
 
 =over 4
 
-=item example
+=item configure --confhost=erebus
 
-This is an example Task. This task just output's the uptime of the system.
+Confiure Erebus network parameters but don't apply it. Run Deploy::Erebus::Net::restart to apply.
+
+=item reload
+
+Reload networking on Erebus router. Sometimes doesn't apply routes. So use restart.
+
+=item restart
+
+Restart networking on Erebus router. Use after uptating routes or dhcp.
 
 =back
 

@@ -46,6 +46,16 @@ sub new {
   #  tun_pub_key => '',
   #  tun_priv_key => '',
   #  tun_array_ref => [],
+  #  r2d2_head_ip => '',
+  #  r2d2_speed_name => '',
+  #  r2d2_glob_speed_in => '',
+  #  r2d2_glob_speed_out => '',
+  #  r2d2_loc_speed_in => '',
+  #  r2d2_loc_speed_out => '',
+  #  r2d2_inet_speed_in => '',
+  #  r2d2_inet_speed_out => '',
+  #  r2d2_limited_speed_in => '',
+  #  r2d2_limited_speed_out => '',
   #};
 
   return $self;

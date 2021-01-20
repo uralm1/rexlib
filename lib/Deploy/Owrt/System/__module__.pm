@@ -36,6 +36,7 @@ task "configure", sub {
   # system parameters
   uci "set system.\@system[0].hostname=\'$p->{host}\'";
   uci "set system.\@system[0].timezone=\'UTC-5\'";
+  uci "set system.\@system[0].ttylogin=\'1\'" if is_x86() and operating_system_version() > 114;
   if (defined $p->{log_ip} && $p->{log_ip} ne '') {
     uci "set system.\@system[0].log_ip=\'$p->{log_ip}\'";
     uci "set system.\@system[0].log_port=\'514\'";
@@ -76,29 +77,27 @@ task "configure", sub {
 
 =head1 NAME
 
-$::module_name - {{ SHORT DESCRIPTION }}
+$::Deploy::Owrt::System - Configure system parameters on Owrt routers.
 
 =head1 DESCRIPTION
 
-{{ LONG DESCRIPTION }}
+Configure system parameters on Owrt routers.
 
 =head1 USAGE
 
-{{ USAGE DESCRIPTION }}
+rex -H 192.168.34.1 Deploy::Owrt::System::configure --confhost=gwtest1
 
- include qw/Deploy::Owrt::System/;
+but better use full configuration task:
 
- task yourtask => sub {
-    Deploy::Owrt::System::example();
- };
+rex -H 192.168.34.1 Deploy::Owrt::deploy_router --confhost=gwtest1
 
 =head1 TASKS
 
 =over 4
 
-=item example
+=item configure --confhost=gwtest1
 
-This is an example Task. This task just output's the uptime of the system.
+Configure system parameters on Owrt routers task.
 
 =back
 

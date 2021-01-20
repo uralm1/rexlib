@@ -6,13 +6,13 @@
 :pipe_in_inet_clients - [0:0]
 :pipe_out_inet_clients - [0:0]
 
-# head access to wan
--A input_wan_rule -s <%= $_head_ip %> -p tcp --sport 2271 -j ACCEPT
--A output_wan_rule -d <%= $_head_ip %> -p tcp --dport 2271 -j ACCEPT
+<% if ($_r2d2_head_ip) { %># head access to wan
+-A input_wan_rule -s <%= $_r2d2_head_ip %> -p tcp --sport 2271 -j ACCEPT
+-A output_wan_rule -d <%= $_r2d2_head_ip %> -p tcp --dport 2271 -j ACCEPT
 
 # gwsyn access from head
--A input_wan_rule -s <%= $_head_ip %> -p tcp --dport 2275 -j ACCEPT
--A output_wan_rule -d <%= $_head_ip %> -p tcp --sport 2275 -j ACCEPT
+-A input_wan_rule -s <%= $_r2d2_head_ip %> -p tcp --dport 2275 -j ACCEPT
+-A output_wan_rule -d <%= $_r2d2_head_ip %> -p tcp --sport 2275 -j ACCEPT<% } %>
 
 # pass localnets
 -A clients_in -s 10.0.0.0/8 -j ACCEPT
