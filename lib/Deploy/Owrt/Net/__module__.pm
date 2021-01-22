@@ -105,7 +105,7 @@ task "configure", sub {
   quci "delete dhcp.\@dnsmasq[0].local";
   uci "set dhcp.\@dnsmasq[0].logqueries=0";
   # add dhcphostfile option to /etc/config/dhcp
-  uci "set dhcp.\@dnsmasq[0].dhcphostsfile=\'/var/r2d2/dhcphosts.clients\'";
+  uci "set dhcp.\@dnsmasq[0].dhcphostsfile=\'/etc/r2d2/dhcphosts.clients\'";
 
   uci "set dhcp.lan.start=\'$p->{dhcp_start}\'";
   uci "set dhcp.lan.limit=\'$p->{dhcp_limit}\'";
@@ -149,6 +149,12 @@ task "configure", sub {
     on_change => sub {
       say '/etc/init.d/dnsmasq: dhcphostsfile processing is patched to set always.';
     };
+
+  file "/etc/r2d2",
+    owner => "ural",
+    group => "root",
+    mode => 755,
+    ensure => "directory";
 
   say "\nNetwork configuration finished for $p->{host}. Restarting the router will change the IP-s and enable DHCP server on LAN!!!.\n";
 };

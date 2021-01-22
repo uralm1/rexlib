@@ -11,7 +11,7 @@ use Ural::Deploy::Utils qw(:DEFAULT is_x86);
 # 1. (Deploy::Owrt::Firewall) Firewall configuration and chains is created in the /etc/firewall.user_r2d2 file.
 # 2. (Deploy::Owrt::Firewall) /etc/firewall.user_r2d2 and /var/r2d2/firewall.clients are included to firewall.
 # 3. (Deploy::Owrt::Net) /etc/init.d/dnsmasq is patched to set --dhcphostsfile option always. 
-# 4. (Deploy::Owrt::Net) dhcphostfile option /var/r2d2/dhcphosts.clients is added to /etc/config/dhcp.
+# 4. (Deploy::Owrt::Net) dhcphostfile option /etc/r2d2/dhcphosts.clients is added to /etc/config/dhcp.
 
 
 desc "OWRT routers: Configure r2d2 (install gwsyn)";
