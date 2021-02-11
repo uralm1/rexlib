@@ -61,7 +61,7 @@ task "configure", sub {
   # run rtsyn after every reboot
   delete_lines_matching '/etc/rc.local', 'exit 0';
   append_if_no_such_line '/etc/rc.local',
-    "(sleep 10 && logger 'Starting rtsyn ater reboot' && /etc/r2d2/rtsyn >/dev/null)&",
+    "(sleep 10 && logger 'Starting rtsyn after reboot' && /etc/r2d2/rtsyn >/dev/null)&",
     on_change => sub { say "rc.local line to run rtsyn on reboot added." };
   append_if_no_such_line '/etc/rc.local', 'exit 0';
 
