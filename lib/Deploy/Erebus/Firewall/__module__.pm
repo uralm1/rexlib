@@ -165,7 +165,7 @@ task "configure", sub {
   }
 
   my @hacks_restore_list = qw/pf_input_ipsec pf_rsyslog_forwarding pf_admin_access_des
-    pf_clients_forwarding pf_internet_r2d2/;
+    pf_clients_forwarding/;
 
   for (@hacks_restore_list) {
     uci "add firewall include";
@@ -174,11 +174,12 @@ task "configure", sub {
     uci "set firewall.\@include[-1].family=ipv4";
   }
 
-  # include r2d2 clients file
+  # include r2d2 configuration file
   uci "add firewall include";
   uci "set firewall.\@include[-1].type=restore";
-  uci "set firewall.\@include[-1].path=\'/var/r2d2/firewall.clients\'";
+  uci "set firewall.\@include[-1].path=\'/etc/firewall.user_r2d2\'";
   uci "set firewall.\@include[-1].family=ipv4";
+
 
   uci "add firewall include";
   uci "set firewall.\@include[-1].path=\'/etc/firewall.user\'";
@@ -189,6 +190,21 @@ task "configure", sub {
   #uci "show firewall";
   uci "commit firewall";
   insert_autogen_comment '/etc/config/firewall';
+
+  # R2d2 iptables_restore firewall.user_r2d2 file
+  my $r2d2_head_ip = '10.14.72.5';
+  file '/etc/firewall.user_r2d2',
+    owner => "ural",
+    group => "root",
+    mode => 644,
+    content => template("files/firewall.user_r2d2.0.tpl",
+      _client_net => '10.0.0.0/8',
+      _r2d2_head_ip => $r2d2_head_ip
+    ),
+    on_change => sub {
+      say "R2d2 configuration was added to /etc/firewall.user_r2d2.";
+      say "HEAD access granted to $r2d2_head_ip.";
+    };
 
   # save iptables_restore hacks to firewall.user_xxx files
   for (@hacks_restore_list) {
@@ -241,6 +257,7 @@ task "configure", sub {
     ) if $h;
   }
 
+
   say 'Firewall configuration finished for '.$p->get_host;
 };
 
@@ -255,7 +272,7 @@ task "test_hacks", sub {
   my $err = undef;
 
   my @hacks_restore_list = qw/pf_input_ipsec pf_rsyslog_forwarding pf_admin_access_des
-    pf_clients_forwarding pf_internet_r2d2/;
+    pf_clients_forwarding/;
 
   for (@hacks_restore_list) {
     say "* Testing hack: $_";

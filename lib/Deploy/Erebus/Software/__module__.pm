@@ -28,8 +28,7 @@ task "configure", sub {
   for (qw/ip-full tc conntrack kmod-sched
     iperf3 irqbalance ethtool lm-sensors lm-sensors-detect
     strongswan-default tinc snmpd snmp-utils
-    perl perlbase-encode perlbase-findbin perl-dbi perl-dbd-mysql perl-netaddr-ip perl-sys-runalone
-    libmariadb openssh-client/) {
+    openssh-client/) {
     pkg $_, ensure => latest,
       on_change => sub { say "package $_ was installed." };
   }
@@ -43,29 +42,25 @@ task "configure", sub {
 
 =head1 NAME
 
-$::module_name - {{ SHORT DESCRIPTION }}
+$::Deploy::Erebus::Software - Install base software packages on Erebus router.
 
 =head1 DESCRIPTION
 
-{{ LONG DESCRIPTION }}
+Installs base software packages on Erebus router not including perl for R2d2.
 
 =head1 USAGE
 
-{{ USAGE DESCRIPTION }}
+<network repository should be online>
 
- include qw/Deploy::Erebus::Software/;
-
- task yourtask => sub {
-    Deploy::Erebus::Software::example();
- };
+rex -H 192.168.12.3 Deploy::Erebus::Software::configure --confhost=erebus
 
 =head1 TASKS
 
 =over 4
 
-=item example
+=item configure --confhost=erebus
 
-This is an example Task. This task just output's the uptime of the system.
+Installs base software.
 
 =back
 

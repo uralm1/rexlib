@@ -1,11 +1,14 @@
 package Deploy::Erebus::R2d2;
 
 use Rex -feature=>['1.4'];
-use Rex::Commands::Cron;
 use Data::Dumper;
 
 use Ural::Deploy::ReadDB_Erebus;
 use Ural::Deploy::Utils;
+
+# Whats already done before for R2d2 on Erebus:
+# 1. (Deploy::Erebus::Firewall) Firewall configuration and chains is created in the /etc/firewall.user_r2d2 file.
+# 2. (Deploy::Erebus::Firewall) /etc/firewall.user_r2d2 is included to firewall.
 
 
 desc "Erebus router: Configure r2d2 (install rtsyn)";
@@ -17,53 +20,119 @@ task "configure", sub {
 
   say 'R2d2 configuration started for '.$p->get_host;
 
-  for (qw/perl perlbase-encode perlbase-findbin perl-dbi perl-dbd-mysql perl-netaddr-ip perl-sys-runalone libmariadb/) {
-    pkg $_, ensure => "present";
+  # try to stop services
+  for ('rtsyn', 'rtsyn-minion') {
+    if (is_file("/etc/init.d/$_")) {
+      say "Stopping $_ service.";
+      my $output = run "/etc/init.d/$_ stop 2>&1", timeout => 100;
+      say $output if $output;
+    }
+  }
+
+  say "Updating package database.";
+  update_package_db;
+  say "Installing / updating packages for R2d2.";
+  for (qw/perl make perlbase-extutils perlbase-version
+    perl-mojolicious perl-ev perl-cpanel-json-xs perl-io-socket-ssl
+    perl-mojo-sqlite
+    perl-minion perl-minion-backend-sqlite/) {
+    pkg $_, ensure => "latest",
+      on_change => sub { say "package $_ was installed." };
   }
 
   file "/etc/r2d2",
+    ensure => "absent";
+
+  file "/tmp/src",
+    ensure => "absent";
+
+  file "/tmp/src",
     owner => "ural",
     group => "root",
     mode => 755,
     ensure => "directory";
 
-  for (qw/rtsyn print_rules/) {
+  my $SOURCE_TAR = "files/rtsyn-latest.tar.gz";
+  my $dest_tar = "/tmp/src/rtsyn.tar.gz";
+  file $dest_tar,
+    owner => "ural",
+    group => "root",
+    mode => 644,
+    source => $SOURCE_TAR;
+
+  extract $dest_tar,
+    to => '/tmp/src/';
+
+  my @srcdir = grep {is_dir($_)} glob('/tmp/src/*');
+  die "Can't determine source upload path" unless @srcdir;
+  my @r = run "perl Makefile.PL", cwd => $srcdir[0], auto_die => TRUE;
+  say $_ for @r;
+  @r = run "make install", cwd => $srcdir[0], auto_die => TRUE;
+  say $_ for @r;
+
+  # clean up
+  file "/tmp/src",
+    ensure => "absent";
+
+  for (qw/make/) {
+    pkg $_, ensure => "absent",
+      on_change => sub { say "package $_ was removed." };
+  }
+
+  # copy keys (3)
+  my $h = $p->get_host;
+  for ('ca.pem', "$h-cert.pem", "$h-key.pem") {
     file "/etc/r2d2/$_",
+      owner => "ural",
+      group => "root",
+      mode => 644,
+      source => "files/$_",
+      on_change => sub { say "r2d2 key $_ was installed." };
+  }
+
+  # change keys in config
+  my $cfg = '/etc/r2d2/rtsyn.conf';
+  append_or_amend_line $cfg,
+    line => "  local_cert => '/etc/r2d2/$h-cert.pem',",
+    regexp => qr{^\s*local_cert},
+    on_change => sub { say "config file changed for $h local_cert." };
+  append_or_amend_line $cfg,
+    line => "  local_key => '/etc/r2d2/$h-key.pem',",
+    regexp => qr{^\s*local_key},
+    on_change => sub { say "config file changed for $h local_key." };
+  append_or_amend_line $cfg,
+    line => "  ca => '/etc/r2d2/ca.pem',",
+    regexp => qr{^\s*ca\s*=>},
+    on_change => sub { say "config file changed for ca." };
+
+  # head url
+  #die "FATAL ERROR: R2d2 HEAD ip is not set!" unless $p->{r2d2_head_ip};
+  append_or_amend_line $cfg,
+    line => "  head_url => 'https://10.14.72.5:2271',",
+    regexp => qr{^\s*head_url},
+    on_change => sub { say "config file changed for head_url 10.14.72.5." };
+
+  # copy service scripts
+  for ('rtsyn', 'rtsyn-minion') {
+    file "/etc/init.d/$_",
       owner => "ural",
       group => "root",
       mode => 755,
       source => "files/$_",
-      on_change => sub { say "$_ installed." };
+      on_change => sub { say "r2d2 service script $_ was installed." };
   }
 
-  file '/etc/r2d2/r2d2.conf',
-    owner => "ural",
-    group => "root",
-    mode => 644,
-    source => "files/r2d2.conf",
-    on_change => sub { say "r2d2.conf installed." };
+  # enable services
+  for ('rtsyn', 'rtsyn-minion') {
+    if (is_file("/etc/init.d/$_")) {
+      say "Enabling $_ service.";
+      my $output = run "/etc/init.d/$_ enable 2>&1", timeout => 100;
+      say $output if $output;
+    } else {
+      die "Fatal: can not find $_ service!\n";
+    }
+  }
 
-  host_entry 'bikini.uwc.local',
-    ensure => 'present',
-    ip => '10.15.0.3',
-    on_change => sub { say "Control server address added to /etc/hosts." };
-
-  cron_entry 'rtsyn',
-    ensure => 'present',
-    command => "/etc/r2d2/rtsyn 1> /dev/null",
-    user => 'ural',
-    minute => '1,31',
-    hour => '*',
-    on_change => sub { say "cron entry for rtsyn created." };
-
-  #my @crons = cron list => "ural"; say Dumper(\@crons);
-
-  # run rtsyn after every reboot
-  delete_lines_matching '/etc/rc.local', 'exit 0';
-  append_if_no_such_line '/etc/rc.local',
-    "(sleep 10 && logger 'Starting rtsyn after reboot' && /etc/r2d2/rtsyn >/dev/null)&",
-    on_change => sub { say "rc.local line to run rtsyn on reboot added." };
-  append_if_no_such_line '/etc/rc.local', 'exit 0';
 
   say 'R2d2 configuration finished for '.$p->get_host;
 };

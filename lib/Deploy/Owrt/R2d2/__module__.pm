@@ -83,7 +83,7 @@ task "configure", sub {
     ensure => "absent";
 
   for (qw/make/) {
-    pkg $_, ensure => absent,
+    pkg $_, ensure => "absent",
       on_change => sub { say "package $_ was removed." };
   }
 
