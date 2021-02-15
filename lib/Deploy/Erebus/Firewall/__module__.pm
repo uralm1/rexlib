@@ -5,6 +5,7 @@ use Data::Dumper;
 
 use Ural::Deploy::ReadDB_Erebus;
 use Ural::Deploy::Utils qw(:DEFAULT recursive_search_by_from_hostname recursive_search_by_to_hostname);
+use NetAddr::IP::Lite;
 
 
 desc "Erebus router: Configure firewall";
@@ -193,13 +194,15 @@ task "configure", sub {
 
   # R2d2 iptables_restore firewall.user_r2d2 file
   my $r2d2_head_ip = '10.14.72.5';
+  my $__ipn = NetAddr::IP::Lite->new($r2d2_head_ip, 24) or die 'Bad head ip address';
   file '/etc/firewall.user_r2d2',
     owner => "ural",
     group => "root",
     mode => 644,
     content => template("files/firewall.user_r2d2.0.tpl",
       _client_net => '10.0.0.0/8',
-      _r2d2_head_ip => $r2d2_head_ip
+      _r2d2_head_ip => $r2d2_head_ip,
+      _r2d2_head_net => $__ipn->network
     ),
     on_change => sub {
       say "R2d2 configuration was added to /etc/firewall.user_r2d2.";

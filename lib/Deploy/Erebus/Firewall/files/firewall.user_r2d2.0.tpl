@@ -7,8 +7,8 @@
 -A output_lan_rule -d <%= $_r2d2_head_ip %> -p tcp --dport 2271 -j ACCEPT
 
 # rtsyn access from head
--A input_lan_rule -s <%= $_r2d2_head_ip %> -p tcp --dport 2275 -j ACCEPT
--A output_lan_rule -d <%= $_r2d2_head_ip %> -p tcp --sport 2275 -j ACCEPT<% } %>
+-A input_lan_rule -s <%= $_r2d2_head_net %> -p tcp --dport 2275 -j ACCEPT
+-A output_lan_rule -d <%= $_r2d2_head_net %> -p tcp --sport 2275 -j ACCEPT<% } %>
 
 COMMIT
 
