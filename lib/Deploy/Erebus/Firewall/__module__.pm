@@ -181,6 +181,12 @@ task "configure", sub {
   uci "set firewall.\@include[-1].path=\'/etc/firewall.user_r2d2\'";
   uci "set firewall.\@include[-1].family=ipv4";
 
+  # include r2d2 client file
+  uci "add firewall include";
+  uci "set firewall.\@include[-1].type=restore";
+  uci "set firewall.\@include[-1].path=\'/var/r2d2/firewall-rtsyn.clients\'";
+  uci "set firewall.\@include[-1].family=ipv4";
+
 
   uci "add firewall include";
   uci "set firewall.\@include[-1].path=\'/etc/firewall.user\'";

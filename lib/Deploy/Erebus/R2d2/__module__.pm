@@ -8,7 +8,7 @@ use Ural::Deploy::Utils;
 
 # Whats already done before for R2d2 on Erebus:
 # 1. (Deploy::Erebus::Firewall) Firewall configuration and chains is created in the /etc/firewall.user_r2d2 file.
-# 2. (Deploy::Erebus::Firewall) /etc/firewall.user_r2d2 is included to firewall.
+# 2. (Deploy::Erebus::Firewall) /etc/firewall.user_r2d2 and /var/r2d2/firewall-rtsyn.clients are included to firewall.
 
 
 desc "Erebus router: Configure r2d2 (install rtsyn)";
