@@ -113,6 +113,12 @@ task "configure", sub {
     regexp => qr{^\s*ca\s*=>},
     on_change => sub { say "config file changed for ca." };
 
+  # profile name
+  append_or_amend_line $cfg,
+    line => "  my_profiles => ['$h'],",
+    regexp => qr{^\s*my_profiles},
+    on_change => sub { say "config file changed for my_profiles [$h]." };
+
   # head url
   die "FATAL ERROR: R2d2 HEAD ip is not set!" unless $p->{r2d2_head_ip};
   append_or_amend_line $cfg,
