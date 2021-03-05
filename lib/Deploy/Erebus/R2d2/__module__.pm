@@ -40,9 +40,6 @@ task "configure", sub {
       on_change => sub { say "package $_ was installed." };
   }
 
-  file "/etc/r2d2",
-    ensure => "absent";
-
   file "/tmp/src",
     ensure => "absent";
 
@@ -135,6 +132,7 @@ task "configure", sub {
 
 
   say 'R2d2 configuration finished for '.$p->get_host;
+  say 'Check configuration file /etc/r2d2/rtsyn.conf before starting services!';
 };
 
 
