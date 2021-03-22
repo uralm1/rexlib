@@ -151,7 +151,7 @@ placed in the files directory.
 
 =head1 USAGE
 
-<copy latest gwsyn source tar, keys, certs, config to the files/ directory>
+<copy latest rtsyn source tar, keys, certs, config to the files/ directory>
 
 rex -H 192.168.12.3 Deploy::Erebus::R2d2::configure --confhost=erebus
 

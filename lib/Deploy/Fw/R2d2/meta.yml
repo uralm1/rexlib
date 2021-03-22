@@ -1,0 +1,5 @@
+Name: Deploy::Fw::R2d2
+Description: Deploy fw r2d2 subsystem
+Author: ural
+License: Apache 2.0
+#PerlRequire:
