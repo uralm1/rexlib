@@ -1,5 +1,5 @@
 /*.pem
 /*.tar.gz
 /fwsyn
-/fwsyn-minion
+/fwsyn-worker
 /rc.fwsyn

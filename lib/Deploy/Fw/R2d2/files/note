@@ -1,6 +1,7 @@
 This directory should contain:
 
 fwsyn-latest.tar.gz tarball,
+ljq-latest.tar.gz tarball,
 ca.pem,
 fw-cert.pem,
 fw-key.pem,

@@ -41,18 +41,28 @@ task "configure", sub {
 
   my $SOURCE_TAR = "files/fwsyn-latest.tar.gz";
   my $dest_tar = "/tmp/src/fwsyn.tar.gz";
-  file $dest_tar,
-    owner => "ural",
-    group => "root",
-    mode => 644,
-    source => $SOURCE_TAR;
+  my $LJQ_SOURCE_TAR = "files/ljq-latest.tar.gz";
+  my $ljq_dest_tar = "/tmp/src/ljq.tar.gz";
 
-  extract $dest_tar,
-    to => '/tmp/src/';
+  file $dest_tar, source => $SOURCE_TAR;
+  file $ljq_dest_tar, source => $LJQ_SOURCE_TAR;
 
-  my @srcdir = grep {is_dir($_)} glob('/tmp/src/*');
+  extract $dest_tar, to => '/tmp/src/';
+  extract $ljq_dest_tar, to => '/tmp/src/';
+
+  my @srcdir = grep {is_dir($_)} glob('/tmp/src/fwsyn*');
   die "Can't determine source upload path" unless @srcdir;
-  my @r = run "perl Makefile.PL", cwd => $srcdir[0], auto_die => TRUE;
+  my @ljq_srcdir = grep {is_dir($_)} glob('/tmp/src/ljq*');
+  die "Can't determine ljq source upload path" unless @ljq_srcdir;
+
+  say "Installing ljq...";
+  my @r = run "perl Makefile.PL", cwd => $ljq_srcdir[0], auto_die => TRUE;
+  say $_ for @r;
+  @r = run "make install", cwd => $ljq_srcdir[0], auto_die => TRUE;
+  say $_ for @r;
+
+  say "Installing fwsyn...";
+  @r = run "perl Makefile.PL", cwd => $srcdir[0], auto_die => TRUE;
   say $_ for @r;
   @r = run "make install", cwd => $srcdir[0], auto_die => TRUE;
   say $_ for @r;

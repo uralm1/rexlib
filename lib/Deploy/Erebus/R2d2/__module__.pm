@@ -21,7 +21,7 @@ task "configure", sub {
   say 'R2d2 configuration started for '.$p->get_host;
 
   # try to stop services
-  for ('rtsyn', 'rtsyn-minion') {
+  for ('rtsyn', 'rtsyn-worker') {
     if (is_file("/etc/init.d/$_")) {
       say "Stopping $_ service.";
       my $output = run "/etc/init.d/$_ stop 2>&1", timeout => 100;
@@ -33,9 +33,7 @@ task "configure", sub {
   update_package_db;
   say "Installing / updating packages for R2d2.";
   for (qw/perl make perlbase-extutils perlbase-version
-    perl-mojolicious perl-ev perl-cpanel-json-xs perl-io-socket-ssl
-    perl-mojo-sqlite
-    perl-minion perl-minion-backend-sqlite/) {
+    perl-mojolicious perl-ev perl-cpanel-json-xs perl-io-socket-ssl/) {
     pkg $_, ensure => "latest",
       on_change => sub { say "package $_ was installed." };
   }
@@ -51,18 +49,28 @@ task "configure", sub {
 
   my $SOURCE_TAR = "files/rtsyn-latest.tar.gz";
   my $dest_tar = "/tmp/src/rtsyn.tar.gz";
-  file $dest_tar,
-    owner => "ural",
-    group => "root",
-    mode => 644,
-    source => $SOURCE_TAR;
+  my $LJQ_SOURCE_TAR = "files/ljq-latest.tar.gz";
+  my $ljq_dest_tar = "/tmp/src/ljq.tar.gz";
 
-  extract $dest_tar,
-    to => '/tmp/src/';
+  file $dest_tar, source => $SOURCE_TAR;
+  file $ljq_dest_tar, source => $LJQ_SOURCE_TAR;
 
-  my @srcdir = grep {is_dir($_)} glob('/tmp/src/*');
+  extract $dest_tar, to => '/tmp/src/';
+  extract $ljq_dest_tar, to => '/tmp/src/';
+
+  my @srcdir = grep {is_dir($_)} glob('/tmp/src/rtsyn*');
   die "Can't determine source upload path" unless @srcdir;
-  my @r = run "perl Makefile.PL", cwd => $srcdir[0], auto_die => TRUE;
+  my @ljq_srcdir = grep {is_dir($_)} glob('/tmp/src/ljq*');
+  die "Can't determine ljq source upload path" unless @ljq_srcdir;
+
+  say "Installing ljq...";
+  my @r = run "perl Makefile.PL", cwd => $ljq_srcdir[0], auto_die => TRUE;
+  say $_ for @r;
+  @r = run "make install", cwd => $ljq_srcdir[0], auto_die => TRUE;
+  say $_ for @r;
+
+  say "Installing rtsyn...";
+  @r = run "perl Makefile.PL", cwd => $srcdir[0], auto_die => TRUE;
   say $_ for @r;
   @r = run "make install", cwd => $srcdir[0], auto_die => TRUE;
   say $_ for @r;
@@ -110,7 +118,7 @@ task "configure", sub {
     on_change => sub { say "config file changed for head_url 10.14.72.5." };
 
   # copy service scripts
-  for ('rtsyn', 'rtsyn-minion') {
+  for ('rtsyn', 'rtsyn-worker') {
     file "/etc/init.d/$_",
       owner => "ural",
       group => "root",
@@ -120,7 +128,7 @@ task "configure", sub {
   }
 
   # enable services
-  for ('rtsyn', 'rtsyn-minion') {
+  for ('rtsyn', 'rtsyn-worker') {
     if (is_file("/etc/init.d/$_")) {
       say "Enabling $_ service.";
       my $output = run "/etc/init.d/$_ enable 2>&1", timeout => 100;

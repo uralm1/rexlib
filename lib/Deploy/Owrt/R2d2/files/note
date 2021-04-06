@@ -1,7 +1,8 @@
 This directory should contain:
 
 gwsyn-latest.tar.gz tarball,
+ljq-latest.tar.gz tarball,
 ca.pem,
 <host>-cert.pem,
 <host>-key.pem,
-gwsyn, gwsyn-minion, gwsyn-cron
+gwsyn, gwsyn-worker, gwsyn-cron

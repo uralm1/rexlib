@@ -1,5 +1,5 @@
 /*.pem
 /*.tar.gz
 /gwsyn
-/gwsyn-minion
+/gwsyn-worker
 /gwsyn-cron

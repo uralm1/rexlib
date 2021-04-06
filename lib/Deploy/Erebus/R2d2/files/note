@@ -1,7 +1,8 @@
 This directory should contain:
 
 rtsyn-latest.tar.gz tarball,
+ljq-latest.tar.gz tarball,
 ca.pem,
 <host>-cert.pem,
 <host>-key.pem,
-rtsyn, rtsyn-minion
+rtsyn, rtsyn-worker
