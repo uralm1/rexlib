@@ -113,6 +113,14 @@ task "configure", sub {
       on_change => sub { say "r2d2 service script $_ was installed." };
   }
 
+  # copy logrotate config
+  file "/etc/logrotate.d/fwsyn",
+    owner => "root",
+    group => "root",
+    mode => 755,
+    source => "files/fwsyn.logrotate",
+    on_change => sub { say "r2d2 fwsyn logrotate file was installed." };
+
   # enable services
   append_or_amend_line '/etc/rc.d/rc.local',
     line => "[ -x /etc/rc.d/rc.fwsyn ] && /etc/rc.d/rc.fwsyn start",

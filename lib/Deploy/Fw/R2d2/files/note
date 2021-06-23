@@ -5,4 +5,5 @@ ljq-latest.tar.gz tarball,
 ca.pem,
 fw-cert.pem,
 fw-key.pem,
-rc.fwsyn
+rc.fwsyn,
+fwsyn.logrotate
