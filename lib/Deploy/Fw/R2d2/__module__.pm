@@ -117,7 +117,7 @@ task "configure", sub {
   file "/etc/logrotate.d/fwsyn",
     owner => "root",
     group => "root",
-    mode => 755,
+    mode => 644,
     source => "files/fwsyn.logrotate",
     on_change => sub { say "r2d2 fwsyn logrotate file was installed." };
 
