@@ -5,5 +5,17 @@ ljq-latest.tar.gz tarball,
 ca.pem,
 fw-cert.pem,
 fw-key.pem,
+
+### при использовании sysvinit
 rc.fwsyn,
 fwsyn.logrotate
+
+### при использовании runit
+runit_fwsyn_run
+runit_fwsyn-cron_run
+runit_fwsyn-worker_run
+runit_log_config
+runit_log_run.tpl
+
+### при использовании systemd
+TODO

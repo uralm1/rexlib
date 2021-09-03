@@ -16,23 +16,30 @@ use Ural::Deploy::Utils qw(:DEFAULT is_x86);
 
 desc "OWRT routers: Configure r2d2 (install gwsyn)";
 # --confhost=host parameter is required
+# --initsystem=openwrt(default)/none
 task "configure", sub {
-  my $ch = shift->{confhost};
+  my $parameters = shift;
+  my $initsystem = $parameters->{initsystem} // 'openwrt';
+  my $ch = $parameters->{confhost};
   my $p = read_db($ch);
   check_par_old;
   
+  die "Initsystem $initsystem is not supported, valid choices are: openwrt/none!" unless $initsystem =~ /^(openwrt|none)$/;
+
   unless (is_x86()) {
     say 'R2d2 is only supported on x86 systems. Cannot continue.';
     return 255;
   }
-  say 'R2d2 configuration started for '.$p->get_host;
+  say 'R2d2 configuration started for '.$p->get_host.", using $initsystem initsystem.";
 
   # try to stop services
-  for ('gwsyn', 'gwsyn-worker', 'gwsyn-cron') {
-    if (is_file("/etc/init.d/$_")) {
-      say "Stopping $_ service.";
-      my $output = run "/etc/init.d/$_ stop 2>&1", timeout => 100;
-      say $output if $output;
+  if ($initsystem =~ /^openwrt$/) {
+    for ('gwsyn', 'gwsyn-worker', 'gwsyn-cron') {
+      if (is_file("/etc/init.d/$_")) {
+	say "Stopping $_ service.";
+	my $output = run "/etc/init.d/$_ stop 2>&1", timeout => 100;
+	say $output if $output;
+      }
     }
   }
 
@@ -132,24 +139,27 @@ task "configure", sub {
     regexp => qr{^\s*head_url},
     on_change => sub { say "config file changed for head_url $p->{r2d2_head_ip}." };
 
-  # copy service scripts
-  for ('gwsyn', 'gwsyn-worker', 'gwsyn-cron') {
-    file "/etc/init.d/$_",
-      owner => "ural",
-      group => "root",
-      mode => 755,
-      source => "files/$_",
-      on_change => sub { say "r2d2 service script $_ was installed." };
-  }
+  ### install services
+  if ($initsystem =~ /^openwrt$/) {
+    # copy service scripts
+    for ('gwsyn', 'gwsyn-worker', 'gwsyn-cron') {
+      file "/etc/init.d/$_",
+	owner => "ural",
+	group => "root",
+	mode => 755,
+	source => "files/$_",
+	on_change => sub { say "r2d2 service script $_ was installed." };
+    }
 
-  # enable services
-  for ('gwsyn', 'gwsyn-worker', 'gwsyn-cron') {
-    if (is_file("/etc/init.d/$_")) {
-      say "Enabling $_ service.";
-      my $output = run "/etc/init.d/$_ enable 2>&1", timeout => 100;
-      say $output if $output;
-    } else {
-      die "Fatal: can not find $_ service!\n";
+    # enable services
+    for ('gwsyn', 'gwsyn-worker', 'gwsyn-cron') {
+      if (is_file("/etc/init.d/$_")) {
+	say "Enabling $_ service.";
+	my $output = run "/etc/init.d/$_ enable 2>&1", timeout => 100;
+	say $output if $output;
+      } else {
+	die "Fatal: can not find $_ service!\n";
+      }
     }
   }
 
@@ -201,13 +211,16 @@ Run the task:
 
 rex -H 192.168.34.1 Deploy::Owrt::R2d2::configure --confhost=gwtest1
 
+rex -H 192.168.34.1 Deploy::Owrt::R2d2::configure --confhost=gwtest1 --initsystem=none|openwrt
+
 =head1 TASKS
 
 =over 4
 
-=item configure --confhost=gwtest1
+=item configure --confhost=gwtest1 [--initsystem=none|openwrt]
 
-Install R2d2 gwsyn agent.
+Install R2d2 gwsyn agent. Agent services can be registered with initsystems selected by
+optional B<--initsystem> parameter. Default initsystem is openwrt.
 
 =back
 

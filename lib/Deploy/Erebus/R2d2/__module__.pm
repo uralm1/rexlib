@@ -13,19 +13,26 @@ use Ural::Deploy::Utils;
 
 desc "Erebus router: Configure r2d2 (install rtsyn)";
 # --confhost=erebus is required
+# --initsystem=openwrt(default)/none
 task "configure", sub {
-  my $ch = shift->{confhost};
+  my $parameters = shift;
+  my $initsystem = $parameters->{initsystem} // 'openwrt';
+  my $ch = $parameters->{confhost};
   my $p = read_db($ch);
   check_par;
 
-  say 'R2d2 configuration started for '.$p->get_host;
+  die "Initsystem $initsystem is not supported, valid choices are: openwrt/none!" unless $initsystem =~ /^(openwrt|none)$/;
+
+  say 'R2d2 configuration started for '.$p->get_host.", using $initsystem initsystem.";
 
   # try to stop services
-  for ('rtsyn', 'rtsyn-worker') {
-    if (is_file("/etc/init.d/$_")) {
-      say "Stopping $_ service.";
-      my $output = run "/etc/init.d/$_ stop 2>&1", timeout => 100;
-      say $output if $output;
+  if ($initsystem =~ /^openwrt$/) {
+    for ('rtsyn', 'rtsyn-worker') {
+      if (is_file("/etc/init.d/$_")) {
+	say "Stopping $_ service.";
+	my $output = run "/etc/init.d/$_ stop 2>&1", timeout => 100;
+	say $output if $output;
+      }
     }
   }
 
@@ -117,24 +124,27 @@ task "configure", sub {
     regexp => qr{^\s*head_url},
     on_change => sub { say "config file changed for head_url 10.14.72.5." };
 
-  # copy service scripts
-  for ('rtsyn', 'rtsyn-worker') {
-    file "/etc/init.d/$_",
-      owner => "ural",
-      group => "root",
-      mode => 755,
-      source => "files/$_",
-      on_change => sub { say "r2d2 service script $_ was installed." };
-  }
+  ### install services
+  if ($initsystem =~ /^openwrt$/) {
+    # copy service scripts
+    for ('rtsyn', 'rtsyn-worker') {
+      file "/etc/init.d/$_",
+	owner => "ural",
+	group => "root",
+	mode => 755,
+	source => "files/$_",
+	on_change => sub { say "r2d2 service script $_ was installed." };
+    }
 
-  # enable services
-  for ('rtsyn', 'rtsyn-worker') {
-    if (is_file("/etc/init.d/$_")) {
-      say "Enabling $_ service.";
-      my $output = run "/etc/init.d/$_ enable 2>&1", timeout => 100;
-      say $output if $output;
-    } else {
-      die "Fatal: can not find $_ service!\n";
+    # enable services
+    for ('rtsyn', 'rtsyn-worker') {
+      if (is_file("/etc/init.d/$_")) {
+	say "Enabling $_ service.";
+	my $output = run "/etc/init.d/$_ enable 2>&1", timeout => 100;
+	say $output if $output;
+      } else {
+	die "Fatal: can not find $_ service!\n";
+      }
     }
   }
 
@@ -163,13 +173,16 @@ placed in the files directory.
 
 rex -H 192.168.12.3 Deploy::Erebus::R2d2::configure --confhost=erebus
 
+rex -H 192.168.12.3 Deploy::Erebus::R2d2::configure --confhost=erebus --initsystem=none|openwrt
+
 =head1 TASKS
 
 =over 4
 
-=item configure --confhost=erebus
+=item configure --confhost=erebus [--initsystem=none|openwrt]
 
-Install R2d2 rtsyn agent.
+Install R2d2 rtsyn agent. Agent services can be registered with initsystems selected by
+optional B<--initsystem> parameter. Default initsystem is openwrt.
 
 =back
 

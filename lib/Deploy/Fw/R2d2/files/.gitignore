@@ -4,3 +4,4 @@
 /fwsyn-worker
 /rc.fwsyn
 /fwsyn.logrotate
+/runit_*
