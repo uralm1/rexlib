@@ -215,16 +215,23 @@ INNER JOIN interfaces ifs ON ifs.id = node_if_id") or die $dbh->errstr;
 
 
 ##################################
-desc "Reload tinc daemon (useful after updating net hosts files, works on erebus too)";
-task "reload", sub {
-  my $pf = "/var/run/tinc.$def_net.pid";
-  if (is_readable($pf)) {
-    say "Reloading tinc daemon on host ".connection->server." ...";
-    run "kill -HUP `cat $pf`";
-    say "HUP signal is sent.";
-  } else {
-    say "Pid file $pf wasn't found. May be wrong host, or tinc is not running.";
-  }
+desc "Restart tinc daemon (useful after updating net hosts files, works on erebus too)";
+task "restart", sub {
+  # owrt require config files in /tmp
+  #my $pf = "/var/run/tinc.$def_net.pid";
+  #if (is_readable($pf)) {
+  #  say "Reloading tinc daemon on host ".connection->server." ...";
+  #  run "kill -HUP `cat $pf`";
+  #  say "HUP signal is sent.";
+  #} else {
+  #  say "Pid file $pf wasn't found. May be wrong host, or tinc is not running.";
+  #}
+
+  say "Restarting tinc daemon on host ".connection->server." ...";
+  #service tinc => 'restart;
+  my $output = run "/etc/init.d/tinc restart 2>&1", timeout => 100;
+  say $output if $output;
+  return (($? > 0) ? 255:0);
 };
 
 
