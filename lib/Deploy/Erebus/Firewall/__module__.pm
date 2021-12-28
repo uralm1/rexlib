@@ -13,7 +13,7 @@ desc "Erebus router: Configure firewall";
 task "configure", sub {
   my $ch = shift->{confhost};
   my $p = read_db($ch);
-  check_par;
+  check_dev_erebus;
 
   say 'Firewall configuration started for '.$p->get_host;
 
@@ -275,7 +275,7 @@ task "configure", sub {
 desc "Erebus router: Test firewall hacks";
 task "test_hacks", sub {
   my $p = read_db 'erebus';
-  check_par;
+  check_dev_erebus;
 
   say 'Firewall hacks test started for '.$p->get_host;
   my $err = undef;

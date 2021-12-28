@@ -15,11 +15,11 @@ desc "Erebus router: DEPLOY ROUTER
 task "deploy_router", sub {
   my $ch = shift->{confhost} // 'erebus';
   my $p = read_db($ch);
-  check_par;
+  check_dev_erebus;
 
   say 'Router deployment/Erebus/ started for '.$p->get_host;
   say "Router manufacturer from database: $p->{manufacturer}" if $p->{manufacturer};
-  say "Router type from database: $p->{eq_name}" if $p->{eq_name};
+  say "Router type from database: $p->{equipment_name}" if $p->{equipment_name};
   say "Department: $p->{dept_name}\n" if $p->{dept_name};
   # confhost parameter is required
   Deploy::Erebus::Software::configure( { confhost => $ch } );
@@ -45,7 +45,7 @@ task "deploy_router", sub {
 ##################################
 task "_t", sub {
   my $p = read_db 'erebus';
-  check_par;
+  check_dev_erebus;
   $p->dump;
 }, {dont_register => TRUE};
 

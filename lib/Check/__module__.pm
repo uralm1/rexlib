@@ -51,8 +51,8 @@ task diagnose => sub {
   my $hr = $dbh->selectrow_hashref("SELECT \
 r.host_name AS host_name, \
 r.gateway AS gateway, \
-router_equipment.eq_name AS eq_name, \
-router_equipment.manufacturer AS eq_manufacturer, \
+router_equipment.eq_name AS equipment_name, \
+router_equipment.manufacturer AS manufacturer, \
 departments.dept_name AS dept_name, \
 departments.address AS dept_address, \
 departments.contacts AS dept_contacts, \
@@ -97,7 +97,7 @@ INNER JOIN routers r ON d.router_id = r.id \
 WHERE r.host_name = ?", { Slice=>{} }, $host);
 
   $rp->say("Автодиагностика узла $hr->{host_name} корпоративной сети...\n");
-  $rp->say("Маршрутизатор $hr->{host_name}, тип ".nd($hr->{eq_name}).' ('.nd($hr->{eq_manufacturer}).').');
+  $rp->say("Маршрутизатор $hr->{host_name}, тип ".nd($hr->{equipment_name}).' ('.nd($hr->{manufacturer}).').');
   $rp->say('Место размещения маршрутизатора: '.nd($hr->{dept_name}).'.');
   $rp->say('Посмотреть на карте: https://net.uwc.ufanet.ru/mapv?c='.$hr->{host_name});
   $rp->say('Маршрутизатор обслуживает следующие подразделения: ');

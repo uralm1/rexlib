@@ -19,7 +19,7 @@ task "configure", sub {
   my $initsystem = $parameters->{initsystem} // 'openwrt';
   my $ch = $parameters->{confhost};
   my $p = read_db($ch);
-  check_par;
+  check_dev_erebus;
 
   die "Initsystem $initsystem is not supported, valid choices are: openwrt/none!" unless $initsystem =~ /^(openwrt|none)$/;
 

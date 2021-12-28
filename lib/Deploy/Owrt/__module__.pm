@@ -75,11 +75,11 @@ desc "OWRT routers: DEPLOY ROUTER
 task "deploy_router", sub {
   my $ch = shift->{confhost};
   my $p = read_db($ch);
-  check_par_old;
+  check_dev;
 
   say 'Router deployment/OpenWRT/ started for '.$p->get_host;
   say "Router manufacturer from database: $p->{manufacturer}" if $p->{manufacturer};
-  say "Router type from database: $p->{eq_name}" if $p->{eq_name};
+  say "Router type from database: $p->{equipment_name}" if $p->{equipment_name};
   say "Department: $p->{dept_name}\n" if $p->{dept_name};
   # confhost parameter is required
   Deploy::Owrt::System::configure( { confhost => $ch } );
@@ -98,7 +98,7 @@ task "deploy_router", sub {
 task "_t", sub {
   my $p = read_db 'gwsouth2';
   #my $p = read_db 'gwtest1';
-  #check_par_old;
+  #check_dev;
   $p->dump;
 
 }, {dont_register => TRUE};

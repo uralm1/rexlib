@@ -12,7 +12,7 @@ desc "OWRT routers: Configure system parameters";
 task "configure", sub {
   my $ch = shift->{confhost};
   my $p = read_db($ch);
-  check_par_old;
+  check_dev;
 
   say 'System configuration started for '.$p->get_host;
 

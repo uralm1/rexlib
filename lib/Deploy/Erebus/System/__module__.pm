@@ -12,7 +12,7 @@ desc "Erebus router: Configure system parameters";
 task "configure", sub {
   my $ch = shift->{confhost};
   my $p = read_db($ch);
-  check_par;
+  check_dev_erebus;
 
   say 'System configuration started for '.$p->get_host;
 

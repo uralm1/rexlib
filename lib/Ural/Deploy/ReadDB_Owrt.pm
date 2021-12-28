@@ -54,7 +54,8 @@ sub _read_uncached {
   $self->{dbh} = $dbh;
 
   my $hr = $dbh->selectrow_hashref("SELECT \
-router_equipment.eq_name AS eq_name, \
+routers.id AS router_id, \
+router_equipment.eq_name AS equipment_name, \
 router_equipment.manufacturer AS manufacturer, \
 departments.dept_name AS dept_name, \
 routers.gateway AS gateway, \

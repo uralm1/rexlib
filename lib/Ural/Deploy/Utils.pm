@@ -15,7 +15,7 @@ use Rex::Commands;
 use Exporter 'import';
 our @EXPORT_OK = qw(remove_dups is_x86
   recursive_search_by_from_hostname recursive_search_by_to_hostname);
-our @EXPORT = qw(uci quci insert_autogen_comment check_par check_par_old);
+our @EXPORT = qw(uci quci insert_autogen_comment check_dev_erebus check_dev);
 
 
 # ['a','b'] == remove_dups(['a','a','b']);
@@ -27,7 +27,7 @@ sub remove_dups {
 
 
 ### Helpers
-sub check_par {
+sub check_dev_erebus {
   die "Unsupported operating system!\n" unless operating_system_is('OpenWrt');
   #say "OS version: ".operating_system_version();
   #say "OS release: ".operating_system_release();
@@ -37,7 +37,7 @@ sub check_par {
 }
 
 # for owrt
-sub check_par_old {
+sub check_dev {
   die "Unsupported operating system!\n" unless operating_system_is('OpenWrt');
   #say "OS version: ".operating_system_version();
   #say "OS release: ".operating_system_release();
