@@ -16,7 +16,7 @@ desc "OWRT routers: Configure tinc tunnel";
 task "configure", sub {
   my $ch = shift->{confhost};
   my $p = read_db($ch);
-  check_dev;
+  check_dev $p;
 
   say 'Tinc tunnel configuration started for '.$p->get_host;
 

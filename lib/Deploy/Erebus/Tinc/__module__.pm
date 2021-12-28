@@ -15,7 +15,7 @@ desc "Erebus router: Configure tinc";
 task "configure", sub {
   my $ch = shift->{confhost};
   my $p = read_db($ch);
-  check_dev_erebus;
+  check_dev_erebus $p;
 
   say 'Tinc configuration started for '.$p->get_host;
 

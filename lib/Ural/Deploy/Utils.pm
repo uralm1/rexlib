@@ -15,7 +15,7 @@ use Rex::Commands;
 use Exporter 'import';
 our @EXPORT_OK = qw(remove_dups is_x86
   recursive_search_by_from_hostname recursive_search_by_to_hostname);
-our @EXPORT = qw(uci quci insert_autogen_comment check_dev_erebus check_dev);
+our @EXPORT = qw(uci quci insert_autogen_comment check_dev_erebus check_dev router_os);
 
 
 # ['a','b'] == remove_dups(['a','a','b']);
@@ -28,22 +28,47 @@ sub remove_dups {
 
 ### Helpers
 sub check_dev_erebus {
+  my $p = shift;
+  die "Parameters argument required!\n" unless $p;
+
   die "Unsupported operating system!\n" unless operating_system_is('OpenWrt');
   #say "OS version: ".operating_system_version();
   #say "OS release: ".operating_system_release();
   my $os_ver = operating_system_version();
-  die "Unsupported firmware version!\n" if ($os_ver < 114 || $os_ver > 399);
+  die "Unsupported firmware version!\n" if $os_ver < 114 || $os_ver > 399;
+
+  die "This configuration script doesn't support operating system assigned to this device $p->{equipment_name} $p->{router_os_name}!\n"
+    if router_os($p) !~ /^x86$/i;
   1;
 }
 
 # for owrt
 sub check_dev {
+  my $p = shift;
+  die "Parameters argument required!\n" unless $p;
+
   die "Unsupported operating system!\n" unless operating_system_is('OpenWrt');
   #say "OS version: ".operating_system_version();
   #say "OS release: ".operating_system_release();
   my $os_ver = operating_system_version();
-  die "Unsupported firmware version!\n" if ($os_ver < 113 || $os_ver > 399);
+  die "Unsupported firmware version!\n" if $os_ver < 113 || $os_ver > 399;
+
+  die "This configuration script doesn't support operating system assigned to this device $p->{equipment_name} $p->{router_os_name}!\n"
+    if router_os($p) =~ /^unsupported$/i;
   1;
+}
+
+
+# 'mips tp-link'|'mips mikrotik'|'x86'|'unsupported' = router_os $params
+sub router_os {
+  my $p = shift;
+  die "Parameters argument required!\n" unless $p;
+
+  my $id = $p->{router_os_id};
+  return 'mips tp-link' if $id == 1;
+  return 'mips mikrotik' if $id == 7;
+  return 'x86' if $id == 2;
+  return 'unsupported';
 }
 
 

@@ -12,7 +12,7 @@ desc "Erebus router: Configure snmp";
 task "configure", sub {
   my $ch = shift->{confhost};
   my $p = read_db($ch);
-  check_dev_erebus;
+  check_dev_erebus $p;
 
   say 'Snmp configuration started for '.$p->get_host;
 

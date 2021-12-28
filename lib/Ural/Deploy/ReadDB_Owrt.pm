@@ -57,6 +57,8 @@ sub _read_uncached {
 routers.id AS router_id, \
 router_equipment.eq_name AS equipment_name, \
 router_equipment.manufacturer AS manufacturer, \
+os_types.id AS router_os_id, \
+os_types.os_type AS router_os_name, \
 departments.dept_name AS dept_name, \
 routers.gateway AS gateway, \
 routers.dns_list AS dns_unparsed, \
@@ -94,6 +96,7 @@ INNER JOIN nets wn ON wn.id = wans.net_id \
 INNER JOIN interfaces lans ON lans.router_id = routers.id AND lans.type = 2 \
 INNER JOIN nets ln ON ln.id = lans.net_id \
 LEFT OUTER JOIN router_equipment ON router_equipment.id = routers.equipment_id \
+LEFT OUTER JOIN os_types ON os_types.id = router_equipment.os_type_id \
 LEFT OUTER JOIN departments ON departments.id = routers.placement_dept_id \
 LEFT OUTER JOIN r2d2_speeds rs ON rs.id = routers.r2d2_speed_id \
 WHERE host_name = ?", {}, $host);

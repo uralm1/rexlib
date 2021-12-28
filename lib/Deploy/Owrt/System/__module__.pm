@@ -12,11 +12,30 @@ desc "OWRT routers: Configure system parameters";
 task "configure", sub {
   my $ch = shift->{confhost};
   my $p = read_db($ch);
-  check_dev;
+  check_dev $p;
+
+  my $tpl_sys_file;
+  my $conntrack_max = 16384;
+
+  my $router_os = router_os $p;
+  if ($router_os =~ /^mips tp-link$/i) {
+    $tpl_sys_file = 'files/system.tp1043.tpl';
+    $conntrack_max = 16384;
+    
+  } elsif ($router_os =~ /^mips mikrotik$/i) {
+    $tpl_sys_file = 'files/system.rb750gr3.117.tpl';
+    $conntrack_max = 65536;
+
+  } elsif ($router_os =~ /^x86$/i) {
+    $tpl_sys_file = 'files/system.x86.tpl';
+    $conntrack_max = 131072;
+
+  } else {
+    die "Unsupported router_os!\n";
+  }
 
   say 'System configuration started for '.$p->get_host;
 
-  my $tpl_sys_file = is_x86() ? 'files/system.x86.tpl' : 'files/system.tp1043.tpl';
   file "/etc/config/system",
     owner => "ural",
     group => "root",
@@ -64,7 +83,7 @@ task "configure", sub {
     owner => "ural",
     group => "root",
     mode => 644,
-    content => template($tpl_sysctl_file, _conntrack_max => is_x86() ? 131072 : 16384),
+    content => template($tpl_sysctl_file, _conntrack_max => $conntrack_max),
     on_change => sub { say "sysctl parameters configured." };
 
   say 'System configuration finished for '.$p->get_host;

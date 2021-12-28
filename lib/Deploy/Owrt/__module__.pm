@@ -75,7 +75,7 @@ desc "OWRT routers: DEPLOY ROUTER
 task "deploy_router", sub {
   my $ch = shift->{confhost};
   my $p = read_db($ch);
-  check_dev;
+  check_dev $p;
 
   say 'Router deployment/OpenWRT/ started for '.$p->get_host;
   say "Router manufacturer from database: $p->{manufacturer}" if $p->{manufacturer};
@@ -98,7 +98,7 @@ task "deploy_router", sub {
 task "_t", sub {
   my $p = read_db 'gwsouth2';
   #my $p = read_db 'gwtest1';
-  #check_dev;
+  #check_dev $p;
   $p->dump;
 
 }, {dont_register => TRUE};

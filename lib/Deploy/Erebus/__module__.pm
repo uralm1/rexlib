@@ -15,7 +15,7 @@ desc "Erebus router: DEPLOY ROUTER
 task "deploy_router", sub {
   my $ch = shift->{confhost} // 'erebus';
   my $p = read_db($ch);
-  check_dev_erebus;
+  check_dev_erebus $p;
 
   say 'Router deployment/Erebus/ started for '.$p->get_host;
   say "Router manufacturer from database: $p->{manufacturer}" if $p->{manufacturer};
@@ -45,7 +45,7 @@ task "deploy_router", sub {
 ##################################
 task "_t", sub {
   my $p = read_db 'erebus';
-  check_dev_erebus;
+  check_dev_erebus $p;
   $p->dump;
 }, {dont_register => TRUE};
 

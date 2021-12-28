@@ -12,7 +12,7 @@ desc "OWRT routers: Configure network";
 task "configure", sub {
   my $ch = shift->{confhost};
   my $p = read_db($ch);
-  check_dev;
+  check_dev $p;
 
   say 'Network configuration started for '.$p->get_host;
 

@@ -50,6 +50,8 @@ sub _read_uncached {
 routers.id AS router_id, \
 router_equipment.eq_name AS equipment_name, \
 router_equipment.manufacturer AS manufacturer, \
+os_types.id AS router_os_id, \
+os_types.os_type AS router_os_name, \
 departments.dept_name AS dept_name, \
 routers.gateway AS gateway, \
 routers.dns_list AS dns_unparsed, \
@@ -59,6 +61,7 @@ routers.ntp_ip AS ntp_ip, \
 routers.ssh_icmp_from_wans_ips AS ssh_icmp_from_wans_ips_unparsed \
 FROM routers \
 LEFT OUTER JOIN router_equipment ON router_equipment.id = routers.equipment_id \
+LEFT OUTER JOIN os_types ON os_types.id = router_equipment.os_type_id \
 LEFT OUTER JOIN departments ON departments.id = routers.placement_dept_id \
 WHERE host_name = ?", {}, $host);
   croak "There's no such host in the database, or database error.\n" unless $hr;

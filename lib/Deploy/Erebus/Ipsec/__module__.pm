@@ -12,7 +12,7 @@ desc "Erebus router: Configure IPsec";
 task "configure", sub {
   my $ch = shift->{confhost};
   my $p = read_db($ch);
-  check_dev_erebus;
+  check_dev_erebus $p;
 
   say 'IPsec configuration started for '.$p->get_host;
 
