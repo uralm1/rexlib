@@ -38,6 +38,7 @@ task "configure", sub {
   uci "set tinc.\@tinc-net[-1].MaxTimeout=600";
   uci "set tinc.\@tinc-net[-1].Name=\'$p->{tun_node_name}\'";
   uci "add_list tinc.\@tinc-net[-1].ConnectTo=\'$_\'" for (@{$p->{tun_connect_nodes}});
+  uci "set tinc.\@tinc-net[-1].AutoConnect=0" if operating_system_version() >= 117;
 
   uci "set tinc.$p->{tun_node_name}=tinc-host";
   uci "set tinc.\@tinc-host[-1].enabled=1";

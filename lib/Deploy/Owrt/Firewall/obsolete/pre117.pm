@@ -1,45 +1,30 @@
-package Deploy::Owrt::Firewall;
+package Deploy::Owrt::Firewall::obsolete::pre117;
 
 use Rex -feature=>['1.4'];
-use Data::Dumper;
+#use Data::Dumper;
 
-use Ural::Deploy::ReadDB_Owrt;
+use Ural::Deploy::ReadDB_Owrt_pre117;
 use Ural::Deploy::Utils qw(:DEFAULT recursive_search_by_from_hostname recursive_search_by_to_hostname);
 use NetAddr::IP::Lite;
 
-require Deploy::Owrt::Firewall::obsolete::pre117;
 
-desc "OWRT routers: Configure firewall";
 # --confhost=host parameter is required
-task "configure", sub {
+sub configure {
   my $ch = shift->{confhost};
-
-  # obsolete code begin
-  if (operating_system_version() < 117) {
-    Deploy::Owrt::Firewall::obsolete::pre117::configure({confhost => $ch});
-    exit 0;
-  } # obsolete code end
-
-  my $p = Ural::Deploy::ReadDB_Owrt->read_db($ch);
+  my $p = Ural::Deploy::ReadDB_Owrt_pre117->read_db($ch);
   check_dev $p;
 
   say 'Firewall configuration started for '.$p->get_host;
 
   pkg "firewall", ensure => "present";
 
-  my @lan_ifs = sort keys %{$p->{lan_ifs}};
-  my @wan_ifs = sort keys %{$p->{wan_ifs}};
   file "/etc/config/firewall",
     owner => "ural",
     group => "root",
     mode => 644,
-    content => template("files/firewall.117.tpl",
-      _lan_interfaces => \@lan_ifs,
-      _wan_interfaces => \@wan_ifs,
-    );
+    content => template("files/firewall.pre117.tpl");
 
   uci "revert firewall";
-
   foreach (@{$p->{ssh_icmp_from_wans_ips}}) {
     # icmp-wan-in-xxx
     uci "add firewall rule";
@@ -171,7 +156,6 @@ task "configure", sub {
   uci "commit firewall";
   insert_autogen_comment '/etc/config/firewall';
 
-  # FIXME
   my $lan_addr = NetAddr::IP::Lite->new($p->{lan_ip}, $p->{lan_netmask}) or die 'Lan net address calculation failure';
   #say "CIDR: ".$lan_addr->network->cidr;
 
@@ -226,7 +210,7 @@ task "configure", sub {
     content => template("files/tc.user.0.tpl");
 
   say 'Firewall configuration finished for '.$p->get_host;
-};
+}
 
 
 1;

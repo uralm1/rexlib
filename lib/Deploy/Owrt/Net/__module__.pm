@@ -7,6 +7,8 @@ use NetAddr::IP::Lite;
 use Ural::Deploy::ReadDB_Owrt;
 use Ural::Deploy::Utils qw(:DEFAULT is_x86);
 
+require Deploy::Owrt::Net::obsolete::pre117;
+
 
 desc "OWRT routers: Configure network";
 # --confhost=host parameter is required
