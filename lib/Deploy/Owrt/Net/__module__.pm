@@ -127,7 +127,7 @@ task "configure", sub {
 
   say "/etc/config/network created and configured.";
 
-  # dhcp FIXME
+  # dhcp
   file "/etc/config/dhcp",
     owner => "ural",
     group => "root",
@@ -138,44 +138,74 @@ task "configure", sub {
   uci "set dhcp.\@dnsmasq[0].domainneeded=0";
   uci "set dhcp.\@dnsmasq[0].boguspriv=0";
   uci "set dhcp.\@dnsmasq[0].rebind_protection=0";
+  # dns
   uci "set dhcp.\@dnsmasq[0].domain=\'$p->{dns_suffix}\'";
   quci "delete dhcp.\@dnsmasq[0].local";
+  quci "delete dhcp.\@dnsmasq[0].server";
+  for (@{$p->{dns}}) {
+    uci "add_list dhcp.\@dnsmasq[0].server=\'$_\'";
+  }
+
   uci "set dhcp.\@dnsmasq[0].logqueries=0";
-  # add dhcphostfile option to /etc/config/dhcp
+
+  # r2d2: add dhcphostfile option to /etc/config/dhcp
   uci "set dhcp.\@dnsmasq[0].dhcphostsfile=\'/etc/r2d2/dhcphosts.clients\'";
 
-  uci "set dhcp.lan.start=\'$p->{dhcp_start}\'";
-  uci "set dhcp.lan.limit=\'$p->{dhcp_limit}\'";
-  uci "set dhcp.lan.leasetime=\'$p->{dhcp_leasetime}\'";
-  # disable dhcp at all
-  if ($p->{dhcp_on} > 0) {
-    uci "set dhcp.lan.ignore=0";
-    uci "set dhcp.lan.dhcpv4=\'server\'";
-  } else {
-    uci "set dhcp.lan.ignore=1";
-    uci "set dhcp.lan.dhcpv4=\'disabled\'";
+  #quci "delete dhcp.\@dnsmasq[0].interface";
+  #uci "add_list dhcp.\@dnsmasq[0].interface=\'lan\'"; # dnsmasq listen only lan
+
+  # lan, wan is not used
+  quci "delete dhcp.lan";
+  quci "delete dhcp.wan";
+
+  # dhcp configuration for interfaces
+  for my $ifs ($p->{lan_ifs}, $p->{wan_ifs}) {
+    for (sort keys %$ifs) {
+      uci "set dhcp.$_=dhcp"; # $_ interface
+      uci "set dhcp.$_.interface=\'$_\'";
+      if ($ifs->{$_}{dhcp_on} > 0) {
+	uci "set dhcp.$_.ignore=0";
+        uci "set dhcp.$_.dhcpv4=\'server\'";
+	uci "set dhcp.$_.start=\'$ifs->{$_}{dhcp_start}\'";
+	uci "set dhcp.$_.limit=\'$ifs->{$_}{dhcp_limit}\'";
+	uci "set dhcp.$_.leasetime=\'$ifs->{$_}{dhcp_leasetime}\'";
+	# only allow static leases
+	#uci "set dhcp.$_.dynamicdhcp=0";
+	# dhcpv6
+	uci "set dhcp.$_.dhcpv6=\'disabled\'";
+	uci "set dhcp.$_.ra=\'disabled\'";
+	uci "set dhcp.$_.ra_slaac=1";
+	quci "delete dhcp.$_.ra_flags";
+	uci "add_list dhcp.$_.ra_flags=\'managed-config\'";
+	uci "add_list dhcp.$_.ra_flags=\'other-config\'";
+
+	quci "delete dhcp.$_.dhcp_option";
+	#uci "add_list dhcp.$_.dhcp_option=\'3,192.168.33.81\'"; #router
+	uci "add_list dhcp.$_.dhcp_option=\'6,$ifs->{$_}{dhcp_dns}\'" if $ifs->{$_}{dhcp_dns}; #dns
+	uci "add_list dhcp.$_.dhcp_option=\'15,$ifs->{$_}{dhcp_dns_suffix}\'" if $ifs->{$_}{dhcp_dns_suffix};
+	uci "add_list dhcp.$_.dhcp_option=\'44,$ifs->{$_}{dhcp_wins}\'" if $ifs->{$_}{dhcp_wins}; #wins
+	uci "add_list dhcp.$_.dhcp_option=\'46,8\'";
+      } else {
+        # disable dhcp at all
+        uci "set dhcp.$_.ignore=1";
+      }
+    }
   }
-  # only allow static leases
-  #uci "set dhcp.lan.dynamicdhcp=0";
-  # dhcpv6
-  uci "set dhcp.lan.dhcpv6=\'disabled\'";
-  uci "set dhcp.lan.ra=\'disabled\'";
-
-  quci "delete dhcp.lan.dhcp_option";
-  #uci "add_list dhcp.lan.dhcp_option=\'3,192.168.33.81\'"; #router
-  uci "add_list dhcp.lan.dhcp_option=\'6,$p->{dhcp_dns}\'" if $p->{dhcp_dns}; #dns
-  uci "add_list dhcp.lan.dhcp_option=\'15,$p->{dhcp_dns_suffix}\'" if $p->{dhcp_dns_suffix};
-  uci "add_list dhcp.lan.dhcp_option=\'44,$p->{dhcp_wins}\'" if $p->{dhcp_wins}; #wins
-  uci "add_list dhcp.lan.dhcp_option=\'46,8\'";
-
   quci "delete dhcp.\@host[-1]" foreach 0..9;
   # static leases
-  for (@{$p->{dhcp_static_leases}}) {
-    uci "add dhcp host";
-    uci "set dhcp.\@host[-1].ip=\'$_->{ip}\'";
-    uci "set dhcp.\@host[-1].mac=\'$_->{mac}\'";
-    uci "set dhcp.\@host[-1].name=\'$_->{name}\'";
+  for my $ifs ($p->{lan_ifs}, $p->{wan_ifs}) {
+    for (sort keys %$ifs) {
+      if ($ifs->{$_}{dhcp_on} > 0) {
+        for my $l (@{$ifs->{$_}{dhcp_static_leases}}) {
+	  uci "add dhcp host";
+	  uci "set dhcp.\@host[-1].ip=\'$l->{ip}\'";
+	  uci "set dhcp.\@host[-1].mac=\'$l->{mac}\'";
+	  uci "set dhcp.\@host[-1].name=\'$l->{name}\'";
+        }
+      }
+    }
   }
+
   say "DHCP and DNS configured.";
 
   #uci "show network";
@@ -185,7 +215,7 @@ task "configure", sub {
   insert_autogen_comment '/etc/config/network';
   insert_autogen_comment '/etc/config/dhcp';
 
-  # patch /etc/init.d/dnsmasq to set --dhcphostsfile option always
+  # r2d2: patch /etc/init.d/dnsmasq to set --dhcphostsfile option always
   sed qr{\[\s+-e\s+\"\$hostsfile\"\s+\]\s+&&\s+xappend},
     'xappend',
     '/etc/init.d/dnsmasq',

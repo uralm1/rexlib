@@ -4,6 +4,7 @@ use Rex -feature=>['1.4'];
 use Data::Dumper;
 use DBI;
 use NetAddr::IP::Lite;
+use List::Util;
 
 use Ural::Deploy::ReadDB_Owrt;
 use Ural::Deploy::Utils;
@@ -36,7 +37,7 @@ task "configure", sub {
   uci "set tinc.\@tinc-net[-1].Interface=vpn1";
   uci "set tinc.\@tinc-net[-1].MaxTimeout=600";
   uci "set tinc.\@tinc-net[-1].Name=\'$p->{tun_node_name}\'";
-  uci "add_list tinc.\@tinc-net[-1].ConnectTo=\'$_\'" foreach (@{$p->{tun_connect_nodes}});
+  uci "add_list tinc.\@tinc-net[-1].ConnectTo=\'$_\'" for (@{$p->{tun_connect_nodes}});
 
   uci "set tinc.$p->{tun_node_name}=tinc-host";
   uci "set tinc.\@tinc-host[-1].enabled=1";
@@ -110,8 +111,8 @@ task "gen_node", sub {
   die "Invalid parameters, run as: rex gen_node --newnode=hostname.\n" unless $_host;
 
   # prepare database
-  my $dbh = DBI->connect("DBI:mysql:database=".get(cmdb('dbname')).';host='.get(cmdb('dbhost')), get(cmdb('dbuser')), get(cmdb('dbpass'))) or 
-    die "Connection to the database failed.\n";
+  my $dbh = DBI->connect("DBI:mysql:database=".get(cmdb('dbname')).';host='.get(cmdb('dbhost')), get(cmdb('dbuser')), get(cmdb('dbpass')))
+    or die "Connection to the database failed.\n";
   $dbh->do("SET NAMES 'UTF8'");
 
   my ($r_id) = $dbh->selectrow_array("SELECT id FROM routers WHERE host_name = ?", {}, $_host);
@@ -203,11 +204,8 @@ INNER JOIN interfaces ifs ON ifs.id = node_if_id") or die $dbh->errstr;
   my @_con_list = @{$p->{tun_connect_nodes}};
   push @_con_list, $p->{tun_node_name}; # current host must be in list too
   foreach my $h (@_con_list) {
-    my $f = 0;
-    foreach (@hosts_files) {
-      if ($h eq $_) { $f = 1; last; }
-    }
-    say "WARNING! Host $h is in tinc connection list, but not distributed." unless ($f);
+    say "WARNING! Host $h is in tinc connection list, but not distributed."
+      if List::Util::none {$h eq $_} @hosts_files;
   }
 
   say 'Tinc hostfiles distribution finished for '.$p->get_host;
