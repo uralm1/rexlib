@@ -47,9 +47,10 @@ task "configure", sub {
   say "Updating package database.";
   update_package_db;
   say "Installing / updating packages for R2d2.";
-  for (qw/tc kmod-sched perl make perlbase-extutils perlbase-version
-    perl-mojolicious perl-ev perl-cpanel-json-xs perl-io-socket-ssl
-    perl-algorithm-cron/) {
+  my $tc_package = operating_system_version() < 117 ? 'tc' : 'tc-full';
+  for (qq/$tc_package kmod-sched perl make perlbase-extutils perlbase-version
+perl-mojolicious perl-ev perl-cpanel-json-xs perl-io-socket-ssl
+perl-algorithm-cron/) {
     pkg $_, ensure => latest,
       on_change => sub { say "package $_ was installed." };
   }
