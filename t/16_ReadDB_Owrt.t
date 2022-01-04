@@ -22,8 +22,8 @@ isa_ok($p, 'Ural::Deploy::HostParamOwrt');
 #diag explain $p;
 #$p->dump;
 
-dies_ok(sub { $p = read_db('erebus'); }, 'Dont read erebus data if not specified.');
-$p = read_db('erebus', skip_erebus_check => 1);
+dies_ok(sub { $p = Ural::Deploy::ReadDB_Owrt->read_db('erebus'); }, 'Dont read erebus data if not specified.');
+$p = Ural::Deploy::ReadDB_Owrt->read_db('erebus', skip_erebus_check => 1);
 is($p->get_host, 'erebus', 'Read erebus data with skip_erebus_check');
 
 done_testing();

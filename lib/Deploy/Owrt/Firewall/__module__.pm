@@ -12,7 +12,7 @@ desc "OWRT routers: Configure firewall";
 # --confhost=host parameter is required
 task "configure", sub {
   my $ch = shift->{confhost};
-  my $p = read_db($ch);
+  my $p = Ural::Deploy::ReadDB_Owrt->read_db($ch);
   check_dev $p;
 
   say 'Firewall configuration started for '.$p->get_host;

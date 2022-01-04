@@ -22,11 +22,11 @@ $p = $r->read('testhost1', no_cache => 1);
 isa_ok($p, 'Ural::Deploy::HostParam');
 ok(!($p->is_cached), 'Third read - not cached');
 
-$p = read_db('testhost1');
+$p = Ural::Deploy::ReadDB_base->read_db('testhost1');
 isa_ok($p, 'Ural::Deploy::HostParam');
 ok($p->is_cached, 'Forth read - cached');
 
-$p = read_db('testhost1');
+$p = Ural::Deploy::ReadDB_base->read_db('testhost1');
 isa_ok($p, 'Ural::Deploy::HostParam');
 ok($p->is_cached, 'Fifth read - cached');
 

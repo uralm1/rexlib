@@ -1,4 +1,4 @@
-package Ural::Deploy::ReadDB_Owrt;
+package Ural::Deploy::ReadDB_Owrt_pre117;
 
 use strict;
 use warnings;
@@ -13,17 +13,17 @@ use DBI;
 use NetAddr::IP::Lite;
 
 use Carp;
-use Ural::Deploy::HostParamOwrt;
+use Ural::Deploy::HostParamOwrt_pre117;
 use Ural::Deploy::Utils qw(remove_dups);
 use parent 'Ural::Deploy::ReadDB_base';
 
 
-# my $r = Ural::Deploy::ReadDB_Owrt->new();
-# my $r = Ural::Deploy::ReadDB_Owrt->new(skip_erebus_check => 1);
+# my $r = Ural::Deploy::ReadDB_Owrt_pre117->new();
+# my $r = Ural::Deploy::ReadDB_Owrt_pre117->new(skip_erebus_check => 1);
 sub new {
   my ($class, %args) = @_;
   my $self = $class->SUPER::new();
-  $self->{result_type} = 'Ural::Deploy::HostParamOwrt';
+  $self->{result_type} = 'Ural::Deploy::HostParamOwrt_pre117';
   #$self->{dbh};
 
   for (qw/skip_erebus_check/) {
@@ -43,7 +43,7 @@ sub _read_uncached {
   my $dbhost = get cmdb('dbhost');
   croak "CMDB failure. Possible CMDB is not initialized.\n" unless $dbname and $dbhost;
 
-  my $p = Ural::Deploy::HostParamOwrt->new(host => $host);
+  my $p = Ural::Deploy::HostParamOwrt_pre117->new(host => $host);
 
   my $dbh = DBI->connect("DBI:mysql:database=$dbname;host=$dbhost", get(cmdb('dbuser')), get(cmdb('dbpass'))) or 
     croak "Connection to the database failed.\n";
@@ -63,6 +63,20 @@ routers.dns_suffix AS dns_suffix, \
 routers.log_ip AS log_ip, \
 routers.ntp_ip AS ntp_ip, \
 routers.ssh_icmp_from_wans_ips AS ssh_icmp_from_wans_ips_unparsed, \
+wans.ip AS wan_ip, \
+wn.mask AS wan_netmask, \
+lans.ip AS lan_ip, \
+ln.mask AS lan_netmask, \
+lans.net_id AS lan_net_id, \
+ln.net_gw AS lan_net_gw, \
+lans.dhcp_on AS dhcp_on, \
+ln.dhcp_start_ip AS dhcp_start, \
+ln.dhcp_limit AS dhcp_limit, \
+ln.dhcp_leasetime AS dhcp_leasetime, \
+ln.dhcp_dns AS dhcp_dns, \
+ln.dhcp_dns_suffix AS dhcp_dns_suffix, \
+ln.dhcp_wins AS dhcp_wins, \
+ln.dhcp_static_leases AS dhcp_static_leases_unparsed, \
 routers.r2d2_head_ip AS r2d2_head_ip, \
 rs.name AS r2d2_speed_name, \
 rs.glob_speed_in AS r2d2_glob_speed_in, \
@@ -74,6 +88,10 @@ rs.inet_speed_out AS r2d2_inet_speed_out, \
 rs.limited_speed_in AS r2d2_limited_speed_in, \
 rs.limited_speed_out AS r2d2_limited_speed_out \
 FROM routers \
+INNER JOIN interfaces wans ON wans.router_id = routers.id AND wans.type = 1 \
+INNER JOIN nets wn ON wn.id = wans.net_id \
+INNER JOIN interfaces lans ON lans.router_id = routers.id AND lans.type = 2 \
+INNER JOIN nets ln ON ln.id = lans.net_id \
 LEFT OUTER JOIN router_equipment ON router_equipment.id = routers.equipment_id \
 LEFT OUTER JOIN os_types ON os_types.id = router_equipment.os_type_id \
 LEFT OUTER JOIN departments ON departments.id = routers.placement_dept_id \
@@ -86,19 +104,60 @@ WHERE host_name = ?", {}, $host);
     $p->{$key} = $value;
   }
 
-  # read wans and lans
-  $p->{wan_ifs} = {};
-  $self->populate_interfaces($p->{wan_ifs}, 1, $p->{router_id});
-  $p->{lan_ifs} = {};
-  $self->populate_interfaces($p->{lan_ifs}, 2, $p->{router_id});
+  # extract routes for lan interface
+  my $ar1 = $dbh->selectall_arrayref("SELECT \
+type AS type, \
+nets.net_ip AS target, \
+nets.mask AS netmask, \
+r_table AS 'table' \
+FROM routes \
+INNER JOIN nets ON net_dst_id = nets.id \
+WHERE net_src_id = ?", {Slice=>{}, MaxRows=>500}, $p->{lan_net_id});
+  croak "Fetching routes database failure.\n" unless $ar1;
+  #say Dumper $ar1;
+
+  $p->{lan_routes} = [];
+  my $routeid = 1;
+  my $r_gateway = $p->{lan_net_gw};
+  for (@$ar1) {
+    my $r1 = {
+      name => "lan_route$routeid",
+      gateway => $r_gateway,
+      target => $_->{target},
+      netmask => $_->{netmask},
+      table => $_->{table},
+      type => $_->{type},
+    };
+    push @{$p->{lan_routes}}, $r1;
+    $routeid++;
+  }
+  delete $p->{lan_net_id};
+  delete $p->{lan_net_gw};
 
   # parse dns_list
   $p->{dns} = [split /,/, $p->{dns_unparsed}];
   delete $p->{dns_unparsed};
-
+  # parse dhcp_start
+  if ($p->{dhcp_start} =~ /^(?:[0-9]{1,3}\.){3}([0-9]{1,3})$/) {
+    $p->{dhcp_start} = $1;
+  }
   # parse ssh_icmp_from_wans_ips
   $p->{ssh_icmp_from_wans_ips} = [split /,/, $p->{ssh_icmp_from_wans_ips_unparsed}];
   delete $p->{ssh_icmp_from_wans_ips_unparsed};
+  # parse dhcp_static_leases
+  my @rres1;
+  foreach (split /;/, $p->{dhcp_static_leases_unparsed}) {
+    my @cr = split /,/, $_;
+    if ($cr[0] and
+      $cr[1] =~ /^(?:[0-9a-fA-F]{1,2}\:){5}[0-9a-fA-F]{1,2}$/ and
+      $cr[2] =~ /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/) {
+        push @rres1, {name => 'lan_'.lc($cr[0]), mac => $cr[1], ip => $cr[2]};
+    } else {
+      say "WARNING: invalid dhcp static lease: $cr[0] on lan interface ignored.";
+    }
+  }
+  $p->{dhcp_static_leases} = \@rres1;
+  delete $p->{dhcp_static_leases_unparsed};
 
   # read vpn parameters
   $hr = $dbh->selectrow_hashref("SELECT \
@@ -133,7 +192,7 @@ WHERE routers.host_name = ?", {}, $host);
   my $node_name = $p->{tun_node_name};
   my @tmp_list = grep { $_->{from_hostname} eq $node_name } @{$p->{tun_array_ref}};
   #say Dumper \@tmp_list;
-  say "INFORMATION! NO destination VPN tunnels are configured for this node. ConnectTo list will be empty." unless @tmp_list;
+  say "WARNING!!! NO destination VPN tunnels are configured for this node. ConnectTo list will be empty." unless @tmp_list;
 
   $p->{tun_connect_nodes} = remove_dups([map { $_->{to_hostname} } @tmp_list]);
   foreach (@{$p->{tun_connect_nodes}}) {
@@ -141,7 +200,7 @@ WHERE routers.host_name = ?", {}, $host);
   }
   ### TODO: check if we can run without vpn configuration records
 
-  # build wan route list (auto_wan_routes)
+  # build route list
   my $sth = $dbh->prepare("SELECT \
 host_name, \
 wans.ip, \
@@ -188,99 +247,6 @@ INNER JOIN nets wn ON wn.id = wans.net_id");
 }
 
 
-# $p->{wan_ifs} = {};
-# $self->populate_interfaces($p->{wan_ifs} /to fill in/, $if_type /1 or 2/, $router_id);
-sub populate_interfaces {
-  my ($self, $ifs_href, $if_type, $router_id) = @_;
-  croak "Unsupported interface type $if_type\n" unless $if_type == 1 || $if_type == 2;
-
-  my $ar = $self->{dbh}->selectall_arrayref("SELECT \
-i.ip AS ip, \
-nets.mask AS netmask, \
-i.vlan AS vlan, \
-i.net_id AS net_src_id, \
-nets.net_gw AS net_src_gw, \
-i.dhcp_on AS dhcp_on, \
-nets.dhcp_start_ip AS dhcp_start, \
-nets.dhcp_limit AS dhcp_limit, \
-nets.dhcp_leasetime AS dhcp_leasetime, \
-nets.dhcp_dns AS dhcp_dns, \
-nets.dhcp_dns_suffix AS dhcp_dns_suffix, \
-nets.dhcp_wins AS dhcp_wins, \
-nets.dhcp_static_leases AS dhcp_static_leases_unparsed \
-FROM interfaces i \
-INNER JOIN nets ON net_id = nets.id \
-WHERE type = ? AND router_id = ?", {Slice=>{}, MaxRows=>10}, $if_type, $router_id);
-  croak "Fetching interfaces database failure.\n" unless $ar;
-  #say Dumper $ar;
-
-  # reorganize wans array to hash for aliasing support
-  my %vif;
-  push(@{$vif{ ($_->{vlan}) ? $_->{vlan} : '0' }}, $_) for (@$ar); # group by vlan
-  #say Dumper \%vif;
-
-  my $part_if = ($if_type == 1) ? 'wan' : 'lan';
-  for (sort keys %vif) {
-    my $vid = $_;
-    my $val = $vif{$_}; # aref
-    my $aliasid = 0;
-    my $routeid = 1;
-    my $part_vlan = ($vid) ? "_vlan$vid" : '';
-    # sort aliases by ip to keep things persistent
-    for (sort {$a->{ip} cmp $b->{ip}} @$val) {
-      my $part_alias = ($aliasid) ? "_alias$aliasid" : '';
-      my $if_name = $part_if.$part_vlan.$part_alias;
-      $ifs_href->{$if_name} = { %$_ };
-      $ifs_href->{$if_name}{alias} = $aliasid++;
-
-      # extract routes for each interface
-      my $ar1 = $self->{dbh}->selectall_arrayref("SELECT \
-type AS type, \
-nets.net_ip AS target, \
-nets.mask AS netmask, \
-r_table AS 'table' \
-FROM routes \
-INNER JOIN nets ON net_dst_id = nets.id \
-WHERE net_src_id = ?", {Slice=>{}, MaxRows=>500}, $_->{net_src_id});
-      croak "Fetching routes database failure.\n" unless $ar1;
-      #say Dumper $ar1;
-
-      my $r_gateway = $_->{net_src_gw};
-      for (@$ar1) {
-	my $r1 = {
-	  name => "${if_name}_route$routeid",
-	  gateway => $r_gateway,
-	  target => $_->{target},
-	  netmask => $_->{netmask},
-	  table => $_->{table},
-	  type => $_->{type},
-        };
-        push @{$ifs_href->{$if_name}{routes}}, $r1;
-	$routeid++;
-      }
-      # parse dhcp_start
-      if ($ifs_href->{$if_name}{dhcp_start} =~ /^(?:[0-9]{1,3}\.){3}([0-9]{1,3})$/) {
-	$ifs_href->{$if_name}{dhcp_start} = $1;
-      }
-      # parse dhcp_static_leases
-      my @rres;
-      foreach (split /;/, $ifs_href->{$if_name}{dhcp_static_leases_unparsed}) {
-	my @cr = split /,/, $_;
-	if ($cr[0] and
-	  $cr[1] =~ /^(?:[0-9a-fA-F]{1,2}\:){5}[0-9a-fA-F]{1,2}$/ and
-	  $cr[2] =~ /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/) {
-	    push @rres, {name => "${if_name}_".lc($cr[0]), mac => $cr[1], ip => $cr[2]};
-	} else {
-	  say "WARNING: invalid dhcp static lease: $cr[0] on interface $if_name ignored.";
-	}
-      }
-      $ifs_href->{$if_name}{dhcp_static_leases} = \@rres;
-      delete $ifs_href->{$if_name}{dhcp_static_leases_unparsed};
-    } # for aliases
-  } # for vlans
-}
-
-
 sub read_tunnels_tinc {
   my $self = shift;
   my $s = $self->{dbh}->prepare("SELECT \
@@ -307,7 +273,7 @@ WHERE t.vpn_type_id = 1");
 }
 
 
-# my $hostparam = Ural::Deploy::ReadDB_Owrt->read_db('testhost1', [no_cache => 1]);
+# my $hostparam = Ural::Deploy::ReadDB_Owrt_pre117->read_db('testhost1', [no_cache => 1]);
 sub read_db {
   my ($class, $host, %args) = @_;
   return $class->new(skip_erebus_check => $args{skip_erebus_check})->read($host, %args);

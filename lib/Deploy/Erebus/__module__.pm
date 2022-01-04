@@ -14,7 +14,7 @@ desc "Erebus router: DEPLOY ROUTER
   rex -H 10.0.1.1 Deploy:Erebus:deploy_router [--confhost=erebus]";
 task "deploy_router", sub {
   my $ch = shift->{confhost} // 'erebus';
-  my $p = read_db($ch);
+  my $p = Ural::Deploy::ReadDB_Erebus->read_db($ch);
   check_dev_erebus $p;
 
   say 'Router deployment/Erebus/ started for '.$p->get_host;
@@ -44,7 +44,7 @@ task "deploy_router", sub {
 
 ##################################
 task "_t", sub {
-  my $p = read_db 'erebus';
+  my $p = Ural::Deploy::ReadDB_Erebus->read_db('erebus');
   check_dev_erebus $p;
   $p->dump;
 }, {dont_register => TRUE};

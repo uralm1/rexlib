@@ -12,7 +12,7 @@ desc "Erebus router: Configure network";
 # --confhost=erebus is required
 task "configure", sub {
   my $ch = shift->{confhost};
-  my $p = read_db($ch);
+  my $p = Ural::Deploy::ReadDB_Erebus->read_db($ch);
   check_dev_erebus $p;
 
   say 'Network configuration started for '.$p->get_host;
@@ -37,32 +37,32 @@ task "configure", sub {
   my $wan_ifname = 'eth1';
 
   # lan
-  my $gw = ($p->{gateway}) ? NetAddr::IP::Lite->new($p->{gateway}) : undef;
+  my $gw = $p->{gateway} ? NetAddr::IP::Lite->new($p->{gateway}) : undef;
   my $ifs_r = $p->{lan_ifs};
   for (sort keys %$ifs_r) {
     my $if_r = $ifs_r->{$_};
-    my $part_vlan = ($if_r->{vlan}) ? ".$if_r->{vlan}" : '';
+    my $part_vlan = $if_r->{vlan} ? ".$if_r->{vlan}" : '';
     uci "set network.$_=interface";
     uci "set network.$_.ifname=\'$lan_ifname$part_vlan\'";
     uci "set network.$_.proto=\'static\'";
     uci "set network.$_.ipaddr=\'$if_r->{ip}\'";
     uci "set network.$_.netmask=\'$if_r->{netmask}\'";
     my $net = NetAddr::IP::Lite->new($if_r->{ip}, $if_r->{netmask});
-    uci "set network.$_.gateway=\'$p->{gateway}\'" if ($gw && $net && $gw->within($net));
+    uci "set network.$_.gateway=\'$p->{gateway}\'" if $gw && $net && $gw->within($net);
     uci "set network.$_.ipv6=0";
   }
   # wan
   $ifs_r = $p->{wan_ifs};
   for (sort keys %$ifs_r) {
     my $if_r = $ifs_r->{$_};
-    my $part_vlan = ($if_r->{vlan}) ? ".$if_r->{vlan}" : '';
+    my $part_vlan = $if_r->{vlan} ? ".$if_r->{vlan}" : '';
     uci "set network.$_=interface";
     uci "set network.$_.ifname=\'$wan_ifname$part_vlan\'";
     uci "set network.$_.proto=\'static\'";
     uci "set network.$_.ipaddr=\'$if_r->{ip}\'";
     uci "set network.$_.netmask=\'$if_r->{netmask}\'";
     my $net = NetAddr::IP::Lite->new($if_r->{ip}, $if_r->{netmask});
-    uci "set network.$_.gateway=\'$p->{gateway}\'" if ($gw && $net && $gw->within($net));
+    uci "set network.$_.gateway=\'$p->{gateway}\'" if $gw && $net && $gw->within($net);
     uci "set network.$_.ipv6=0";
   }
   #uci "set network.lan.ipaddr=\'10.0.1.1\'"; #FIXME

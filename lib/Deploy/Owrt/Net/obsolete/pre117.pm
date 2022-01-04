@@ -1,116 +1,71 @@
-package Deploy::Owrt::Net;
+package Deploy::Owrt::Net::obsolete::pre117;
 
 use Rex -feature=>['1.4'];
-use Data::Dumper;
-use NetAddr::IP::Lite;
+#use Data::Dumper;
 
-use Ural::Deploy::ReadDB_Owrt;
+use Ural::Deploy::ReadDB_Owrt_pre117;
 use Ural::Deploy::Utils qw(:DEFAULT is_x86);
 
 
-desc "OWRT routers: Configure network";
 # --confhost=host parameter is required
-task "configure", sub {
+sub configure {
   my $ch = shift->{confhost};
-
-  # obsolete code begin
-  if (operating_system_version() < 117) {
-    Deploy::Owrt::Net::obsolete::pre117::configure({confhost => $ch});
-    exit 0;
-  } # obsolete code end
-
-  my $p = Ural::Deploy::ReadDB_Owrt->read_db($ch);
+  my $p = Ural::Deploy::ReadDB_Owrt_pre117->read_db($ch);
   check_dev $p;
 
   say 'Network configuration started for '.$p->get_host;
 
-  my $router_os = router_os $p;
-  if ($router_os =~ /^mips tp-link$/i) {
-  } elsif ($router_os =~ /^mips mikrotik$/i) {
-  } elsif ($router_os =~ /^x86$/i) {
+  my $tpl_net_file;
+  my $lan_ifname;
+  my $wan_ifname;
+  if (is_x86()) {
+    $tpl_net_file = 'files/network.x86.tpl';
+    $lan_ifname = 'eth0';
+    $wan_ifname = 'eth1';
   } else {
-    die "Unsupported router_os!\n";
+    $tpl_net_file = 'files/network.tp1043.tpl';
+    $lan_ifname = 'eth1';
+    $wan_ifname = 'eth0';
   }
-
-  # we need /bin/config_generate
-  my $config_generate = can_run('config_generate') or die "config_generate not found!\n";
-
-  # recreate /etc/config/network
-  file '/etc/config/network', ensure => 'absent';
-  run $config_generate, auto_die=>1, timeout=>10;
-  say "/etc/config/network created.";
-
+  file "/etc/config/network",
+    owner => "ural",
+    group => "root",
+    mode => 644,
+    content => template($tpl_net_file);
   uci "revert network";
-  uci "set network.globals.packet_steering=1"; # mikrotik only? FIXME
 
   # create new ula on first re-boot
   file "/etc/uci-defaults/12_network-generate-ula",
     source => "files/12_network-generate-ula";
 
-  # cleanup interfaces
-  quci "delete network.lan";
-  quci "delete network.wan";
+  uci "set network.lan.ifname=\'$lan_ifname\'";
+  uci "set network.lan.proto=\'static\'";
+  uci "set network.lan.ipaddr=\'$p->{lan_ip}\'";
+  uci "set network.lan.netmask=\'$p->{lan_netmask}\'";
+  uci "set network.lan.ipv6=0";
+
+  uci "set network.wan.ifname=\'$wan_ifname\'";
+  uci "set network.wan.proto=\'static\'";
+  uci "set network.wan.ipaddr=\'$p->{wan_ip}\'";
+  uci "set network.wan.netmask=\'$p->{wan_netmask}\'";
+  uci "set network.wan.gateway=\'$p->{gateway}\'";
+  uci "set network.wan.ipv6=0";
+
   quci "delete network.wan6";
 
-  # lan
-  my $gw = $p->{gateway} ? NetAddr::IP::Lite->new($p->{gateway}) : undef;
-  my $ifs = $p->{lan_ifs};
-  for (sort keys %$ifs) {
-    my $if = $ifs->{$_};
-    #my $part_vlan = $if->{vlan} ? ".$if->{vlan}" : '';
-    if ($if->{vlan}) {
-      say "WARNING: vlans not supported, interface $_ ignored!";
-      next;
-    }
-    uci "set network.$_=interface";
-    uci "set network.$_.device=\'br-lan\'";
-    uci "set network.$_.proto=\'static\'";
-    uci "set network.$_.ipaddr=\'$if->{ip}\'";
-    uci "set network.$_.netmask=\'$if->{netmask}\'";
-    my $net = NetAddr::IP::Lite->new($if->{ip}, $if->{netmask});
-    uci "set network.$_.gateway=\'$p->{gateway}\'" if $gw && $net && $gw->within($net);
-    uci "set network.$_.ipv6=0";
-  }
-
-  # wan
-  $ifs = $p->{wan_ifs};
-  for (sort keys %$ifs) {
-    my $if = $ifs->{$_};
-    #my $part_vlan = $if->{vlan} ? ".$if->{vlan}" : '';
-    if ($if->{vlan}) {
-      say "WARNING: vlans not supported, interface $_ ignored!";
-      next;
-    }
-    uci "set network.$_=interface";
-    uci "set network.$_.device=\'wan\'";
-    uci "set network.$_.proto=\'static\'";
-    uci "set network.$_.ipaddr=\'$if->{ip}\'";
-    uci "set network.$_.netmask=\'$if->{netmask}\'";
-    my $net = NetAddr::IP::Lite->new($if->{ip}, $if->{netmask});
-    uci "set network.$_.gateway=\'$p->{gateway}\'" if $gw && $net && $gw->within($net);
-    uci "set network.$_.ipv6=0";
-  }
-
-  # routes
-  for my $ifs ($p->{lan_ifs}, $p->{wan_ifs}) {
-    for (sort keys %$ifs) {
-      my $r_interface = $_;
-      if (my $r = $ifs->{$_}{routes}) {
-	for (@$r) {
-	  my $t = $_->{type};
-	  my $n = $_->{name};
-	  if ($t == 1) { # 1 UNICAST
-	    uci "set network.$n.interface=$r_interface";
-	    uci "set network.$n.target=$_->{target}";
-	    uci "set network.$n.netmask=$_->{netmask}";
-	    uci "set network.$n.gateway=$_->{gateway}";
-	    #uci "set network.$n.table=$_->{table}" if $_->{table};
-	    say "WARNING: table not supported and ignored in route $n!" if $_->{table};
-	  } else {
-	    die  "Unsupported route type: $t";
-	  }
-	}
-      }
+  # lan routes
+  foreach (@{$p->{lan_routes}}) {
+    my $t = $_->{'type'};
+    my $n = $_->{'name'};
+    if ($t == 1) { # 1 UNICAST
+      uci "set network.$n=route";
+      uci "set network.$n.interface=lan";
+      uci "set network.$n.target=\'$_->{target}\'";
+      uci "set network.$n.netmask=\'$_->{netmask}\'";
+      uci "set network.$n.gateway=\'$_->{gateway}\'";
+      #uci "set network.$n.table=$_->{table}" if $_->{table};
+    } else {
+      die "Unsupported route type: $t";
     }
   }
 
@@ -125,14 +80,21 @@ task "configure", sub {
   }
   say "Network routes configured.";
 
+  # dns
+  quci "delete network.lan.dns";
+  foreach (@{$p->{dns}}) {
+    uci "add_list network.lan.dns=\'$_\'";
+  }
+  quci "delete network.lan.dns_search";
+  #uci "add_list network.lan.dns_search=\'$p->{dhcp_dns_suffix}\'";
   say "/etc/config/network created and configured.";
 
-  # dhcp FIXME
+  # dhcp
   file "/etc/config/dhcp",
     owner => "ural",
     group => "root",
     mode => 644,
-    content => template('files/dhcp.117.tpl');
+    content => template("files/dhcp.pre117.tpl");
   uci "revert dhcp";
 
   uci "set dhcp.\@dnsmasq[0].domainneeded=0";
@@ -148,13 +110,7 @@ task "configure", sub {
   uci "set dhcp.lan.limit=\'$p->{dhcp_limit}\'";
   uci "set dhcp.lan.leasetime=\'$p->{dhcp_leasetime}\'";
   # disable dhcp at all
-  if ($p->{dhcp_on} > 0) {
-    uci "set dhcp.lan.ignore=0";
-    uci "set dhcp.lan.dhcpv4=\'server\'";
-  } else {
-    uci "set dhcp.lan.ignore=1";
-    uci "set dhcp.lan.dhcpv4=\'disabled\'";
-  }
+  uci "set dhcp.lan.ignore=".(($p->{dhcp_on} > 0)?0:1);
   # only allow static leases
   #uci "set dhcp.lan.dynamicdhcp=0";
   # dhcpv6
@@ -200,7 +156,7 @@ task "configure", sub {
     ensure => "directory";
 
   say "\nNetwork configuration finished for $p->{host}. Restarting the router will change the IP-s and enable DHCP server on LAN!!!.\n";
-};
+}
 
 
 1;

@@ -11,7 +11,7 @@ desc "Erebus router: Configure snmp";
 # --confhost=erebus is required
 task "configure", sub {
   my $ch = shift->{confhost};
-  my $p = read_db($ch);
+  my $p = Ural::Deploy::ReadDB_Erebus->read_db($ch);
   check_dev_erebus $p;
 
   say 'Snmp configuration started for '.$p->get_host;

@@ -17,9 +17,6 @@ use Ural::Deploy::HostParamErebus;
 use Ural::Deploy::Utils qw(remove_dups);
 use parent 'Ural::Deploy::ReadDB_base';
 
-use Exporter 'import';
-our @EXPORT = qw(read_db);
-
 
 sub new {
   my $class = shift;
@@ -80,6 +77,7 @@ WHERE host_name = ?", {}, $host);
   # parse dns_list
   $p->{dns} = [split /,/, $p->{dns_unparsed}];
   delete $p->{dns_unparsed};
+
   # parse ssh_icmp_from_wans_ips
   $p->{ssh_icmp_from_wans_ips} = [split /,/, $p->{ssh_icmp_from_wans_ips_unparsed}];
   delete $p->{ssh_icmp_from_wans_ips_unparsed};
@@ -266,13 +264,6 @@ WHERE t.vpn_type_id = 1");
     push @t_arr, $hr;
   }
   return \@t_arr;
-}
-
-
-# my $hostparam = read_db('testhost1', [no_cache => 1]);
-sub read_db {
-  my ($host, %args) = @_;
-  return Ural::Deploy::ReadDB_Erebus->new->read($host, %args);
 }
 
 

@@ -21,7 +21,7 @@ task "configure", sub {
   my $parameters = shift;
   my $initsystem = $parameters->{initsystem} // 'openwrt';
   my $ch = $parameters->{confhost};
-  my $p = read_db($ch);
+  my $p = Ural::Deploy::ReadDB_Owrt->read_db($ch);
   check_dev $p;
   
   die "Initsystem $initsystem is not supported, valid choices are: openwrt/none!" unless $initsystem =~ /^(openwrt|none)$/;

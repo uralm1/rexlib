@@ -9,10 +9,6 @@ use Carp;
 use Data::Dumper;
 use Ural::Deploy::HostParam;
 
-use Exporter 'import';
-our @EXPORT = qw(read_db);
-
-
 my %params_cache;
 
 # my $o = Ural::Deploy::ReadDB_base->new();
@@ -68,10 +64,10 @@ sub _dump_cache {
 }
 
 
-# my $hostparam = read_db('testhost1', [no_cache => 1]);
+# my $hostparam = Ural::Deploy::ReadDB_base->read_db('testhost1', [no_cache => 1]);
 sub read_db {
-  my ($host, %args) = @_;
-  return Ural::Deploy::ReadDB_base->new->read($host, %args);
+  my ($class, $host, %args) = @_;
+  return $class->new->read($host, %args);
 }
 
 

@@ -12,7 +12,7 @@ desc "Erebus router: Configure firewall";
 # --confhost=erebus is required
 task "configure", sub {
   my $ch = shift->{confhost};
-  my $p = read_db($ch);
+  my $p = Ural::Deploy::ReadDB_Erebus->read_db($ch);
   check_dev_erebus $p;
 
   say 'Firewall configuration started for '.$p->get_host;
@@ -274,7 +274,7 @@ task "configure", sub {
 ##################################
 desc "Erebus router: Test firewall hacks";
 task "test_hacks", sub {
-  my $p = read_db 'erebus';
+  my $p = Ural::Deploy::ReadDB_Erebus->read_db('erebus');
   check_dev_erebus $p;
 
   say 'Firewall hacks test started for '.$p->get_host;

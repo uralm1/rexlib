@@ -31,4 +31,5 @@ config odhcpd 'odhcpd'
 	option maindhcp '0'
 	option leasefile '/tmp/hosts/odhcpd'
 	option leasetrigger '/usr/sbin/odhcpd-update'
+	option loglevel '4'
 

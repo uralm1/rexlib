@@ -1,22 +1,19 @@
-package Deploy::Erebus::System;
+package Deploy::Owrt::System::obsolete::pre117;
 
 use Rex -feature=>['1.4'];
-#use Data::Dumper;
-
-use Ural::Deploy::ReadDB_Erebus;
-use Ural::Deploy::Utils;
+use Ural::Deploy::ReadDB_Owrt_pre117;
+use Ural::Deploy::Utils qw(:DEFAULT is_x86);
 
 
-desc "Erebus router: Configure system parameters";
-# --confhost=erebus is required
-task "configure", sub {
+# --confhost=host parameter is required
+sub configure {
   my $ch = shift->{confhost};
-  my $p = Ural::Deploy::ReadDB_Erebus->read_db($ch);
-  check_dev_erebus $p;
+  my $p = Ural::Deploy::ReadDB_Owrt_pre117->read_db($ch);
+  check_dev $p;
 
   say 'System configuration started for '.$p->get_host;
 
-  my $tpl_sys_file = 'files/system.x86.tpl';
+  my $tpl_sys_file = is_x86() ? 'files/system.x86.tpl' : 'files/system.tp1043.tpl';
   file "/etc/config/system",
     owner => "ural",
     group => "root",
@@ -36,7 +33,7 @@ task "configure", sub {
   # system parameters
   uci "set system.\@system[0].hostname=\'$p->{host}\'";
   uci "set system.\@system[0].timezone=\'UTC-5\'";
-  uci "set system.\@system[0].ttylogin=\'1\'";
+  uci "set system.\@system[0].ttylogin=\'1\'" if is_x86() and operating_system_version() > 114;
   if (defined $p->{log_ip} && $p->{log_ip} ne '') {
     uci "set system.\@system[0].log_ip=\'$p->{log_ip}\'";
     uci "set system.\@system[0].log_port=\'514\'";
@@ -59,49 +56,15 @@ task "configure", sub {
   insert_autogen_comment '/etc/config/system';
 
   # tune sysctl
+  my $tpl_sysctl_file = (operating_system_version() > 113) ? 'files/sysctl.conf.0.tpl' : 'files/sysctl.conf.113.tpl';
   file "/etc/sysctl.conf",
     owner => "ural",
     group => "root",
     mode => 644,
-    content => template('files/sysctl.conf.0.tpl'),
+    content => template($tpl_sysctl_file, _conntrack_max => is_x86() ? 131072 : 16384),
     on_change => sub { say "sysctl parameters configured." };
 
   say 'System configuration finished for '.$p->get_host;
-};
-
+}
 
 1;
-
-=pod
-
-=head1 NAME
-
-$::Deploy::Erebus::System - Configure system parameters on Erebus router.
-
-=head1 DESCRIPTION
-
-Configure system parameters on Erebus router.
-
-=head1 USAGE
-
-rex -H 192.168.12.3 Deploy::Erebus::System::configure --confhost=erebus
-
-but better use full configuration task:
-
-rex -H 192.168.12.3 Deploy::Erebus::deploy_router --confhost=erebus
-
-or just
-
-rex -H 192.168.12.3 Deploy::Erebus::deploy_router
-
-=head1 TASKS
-
-=over 4
-
-=item configure --confhost=erebus
-
-Configure system parameters on Erebus router task.
-
-=back
-
-=cut

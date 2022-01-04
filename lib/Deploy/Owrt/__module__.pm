@@ -74,7 +74,7 @@ desc "OWRT routers: DEPLOY ROUTER
   rex -H 10.0.1.1 deploy_router --confhost=gwtest1";
 task "deploy_router", sub {
   my $ch = shift->{confhost};
-  my $p = read_db($ch);
+  my $p = Ural::Deploy::ReadDB_Owrt->read_db($ch);
   check_dev $p;
 
   say 'Router deployment/OpenWRT/ started for '.$p->get_host;
@@ -96,8 +96,8 @@ task "deploy_router", sub {
 
 ##################################
 task "_t", sub {
-  my $p = read_db 'gwsouth2';
-  #my $p = read_db 'gwtest1';
+  my $p = Ural::Deploy::ReadDB_Owrt->read_db('gwknsresp');
+  #my $p = Ural::Deploy::ReadDB_Owrt->read_db('gwtest1');
   #check_dev $p;
   $p->dump;
 

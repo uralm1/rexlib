@@ -6,42 +6,48 @@ use Rex -feature=>['1.4'];
 use Ural::Deploy::ReadDB_Owrt;
 use Ural::Deploy::Utils qw(:DEFAULT is_x86);
 
+require Deploy::Owrt::System::obsolete::pre117;
+
 
 desc "OWRT routers: Configure system parameters";
 # --confhost=host parameter is required
 task "configure", sub {
   my $ch = shift->{confhost};
-  my $p = read_db($ch);
+
+  # obsolete code begin
+  if (operating_system_version() < 117) {
+    Deploy::Owrt::System::obsolete::pre117::configure({confhost => $ch});
+    exit 0;
+  } # obsolete code end
+
+  my $p = Ural::Deploy::ReadDB_Owrt->read_db($ch);
   check_dev $p;
 
-  my $tpl_sys_file;
+  say 'System configuration started for '.$p->get_host;
+
   my $conntrack_max = 16384;
 
   my $router_os = router_os $p;
   if ($router_os =~ /^mips tp-link$/i) {
-    $tpl_sys_file = 'files/system.tp1043.tpl';
     $conntrack_max = 16384;
     
   } elsif ($router_os =~ /^mips mikrotik$/i) {
-    $tpl_sys_file = 'files/system.rb750gr3.117.tpl';
     $conntrack_max = 65536;
 
   } elsif ($router_os =~ /^x86$/i) {
-    $tpl_sys_file = 'files/system.x86.tpl';
     $conntrack_max = 131072;
 
   } else {
     die "Unsupported router_os!\n";
   }
 
-  say 'System configuration started for '.$p->get_host;
+  # we need /bin/config_generate
+  my $config_generate = can_run('config_generate') or die "config_generate not found!\n";
 
-  file "/etc/config/system",
-    owner => "ural",
-    group => "root",
-    mode => 644,
-    content => template($tpl_sys_file),
-    on_change => sub { say "/etc/config/system created." };
+  # recreate /etc/config/system
+  file '/etc/config/system', ensure => 'absent';
+  run $config_generate, auto_die=>1, timeout=>10;
+  say "/etc/config/system created.";
 
   file "/etc/banner",
     owner => "ural",
@@ -55,7 +61,7 @@ task "configure", sub {
   # system parameters
   uci "set system.\@system[0].hostname=\'$p->{host}\'";
   uci "set system.\@system[0].timezone=\'UTC-5\'";
-  uci "set system.\@system[0].ttylogin=\'1\'" if is_x86() and operating_system_version() > 114;
+  uci "set system.\@system[0].ttylogin=\'1\'" if is_x86();
   if (defined $p->{log_ip} && $p->{log_ip} ne '') {
     uci "set system.\@system[0].log_ip=\'$p->{log_ip}\'";
     uci "set system.\@system[0].log_port=\'514\'";
@@ -78,12 +84,11 @@ task "configure", sub {
   insert_autogen_comment '/etc/config/system';
 
   # tune sysctl
-  my $tpl_sysctl_file = (operating_system_version() > 113) ? 'files/sysctl.conf.0.tpl' : 'files/sysctl.conf.113.tpl';
   file "/etc/sysctl.conf",
     owner => "ural",
     group => "root",
     mode => 644,
-    content => template($tpl_sysctl_file, _conntrack_max => $conntrack_max),
+    content => template('files/sysctl.conf.0.tpl', _conntrack_max => $conntrack_max),
     on_change => sub { say "sysctl parameters configured." };
 
   say 'System configuration finished for '.$p->get_host;

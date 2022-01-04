@@ -17,6 +17,7 @@ sub new {
 
   # example structure
   #{ host => '',
+  #  router_id, equipment_name, manufacturer, router_os_id, router_os_name, dept_name,
   #  gateway => '',
   #  dns => ['',],
   #  dns_suffix => '',

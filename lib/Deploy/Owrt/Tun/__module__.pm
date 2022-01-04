@@ -15,7 +15,7 @@ desc "OWRT routers: Configure tinc tunnel";
 # --confhost=host parameter is required
 task "configure", sub {
   my $ch = shift->{confhost};
-  my $p = read_db($ch);
+  my $p = Ural::Deploy::ReadDB_Owrt->read_db($ch);
   check_dev $p;
 
   say 'Tinc tunnel configuration started for '.$p->get_host;
@@ -144,7 +144,7 @@ desc "Distribute tinc net hosts files to host (works on erebus too)";
 task "dist_nodes", sub {
   my $params = shift;
   my $ch = $params->{confhost};
-  my $p = read_db($ch, skip_erebus_check=>1);
+  my $p = Ural::Deploy::ReadDB_Owrt->read_db($ch, skip_erebus_check=>1);
 
   say 'Tinc hostfiles distribution started for '.$p->get_host;
 

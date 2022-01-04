@@ -1,4 +1,4 @@
-package Ural::Deploy::HostParamOwrt;
+package Ural::Deploy::HostParamOwrt_pre117;
 
 use strict;
 use warnings;
@@ -8,7 +8,7 @@ use v5.12;
 use Carp;
 use parent 'Ural::Deploy::HostParam';
 
-# $p = Ural::Deploy::HostParamOwrt->new(
+# $p = Ural::Deploy::HostParamOwrt_pre117->new(
 #   host => 'testhost1',
 # );
 sub new {
@@ -24,13 +24,20 @@ sub new {
   #  log_ip => '',
   #  ntp_ip => '',
   #  ssh_icmp_from_wans_ips => ['',],
-  #  wan_ifs => {ifname=>{ip=>'',netmask=>'',vlan=>'',alias=>0, 
-  #    routes=>[{name=>'',type=>1,gateway=>'',target=>'',netmask=>'',table=>''},],
-  #    dhcp_on=>0,dhcp_start=>0,dhcp_limit=>0,dhcp_leasetime=>'',dhcp_dns=>'',dhcp_dns_suffix=>'',dhcp_wins=>'',
-  #    dhcp_static_leases=>[{name=>'',mac=>'',ip=>''},],
-  #  },},
-  #  lan_ifs => {},
+  #  wan_ip => '',
+  #  wan_netmask => '',
   #  auto_wan_routes => [{name=>'',target=>'',netmask=>'',gateway=>''},],
+  #  lan_ip => '',
+  #  lan_netmask => '',
+  #  lan_routes => [{name=>'',type=>1,target=>'',netmask=>'',gateway=>'',table=>''},],
+  #  dhcp_on => 0,
+  #  dhcp_start => 0,
+  #  dhcp_limit => 0,
+  #  dhcp_leasetime => '',
+  #  dhcp_dns => '',
+  #  dhcp_dns_suffix => '',
+  #  dhcp_wins => '',
+  #  dhcp_static_leases => [{name=>'',mac=>'',ip=>''},],
   #  tun_node_name => '',
   #  tun_node_ip => '',
   #  tun_subnet => '',
