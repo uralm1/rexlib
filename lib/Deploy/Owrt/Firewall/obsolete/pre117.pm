@@ -164,7 +164,7 @@ sub configure {
     owner => "ural",
     group => "root",
     mode => 644,
-    content => template("files/firewall.user_r2d2.0.tpl",
+    content => template('files/firewall.user_r2d2.pre117.tpl',
       _client_net => $lan_addr->network->cidr,
       _r2d2_head_ip => $p->{r2d2_head_ip}
     ),

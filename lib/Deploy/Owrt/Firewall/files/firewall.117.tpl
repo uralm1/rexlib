@@ -8,7 +8,7 @@ config defaults
 
 config zone
 	option name		lan
-<% for my $if (@{ $_lan_interfaces }) { %>
+<% for my $if (@$_lan_interfaces) { %>
 	list network	'<%= $if %>'
 <% } %>
 	option input		REJECT
@@ -20,7 +20,7 @@ config zone
 
 config zone
 	option name		wan
-<% for my $if (@{ $_wan_interfaces }) { %>
+<% for my $if (@$_wan_interfaces) { %>
 	list network	'<%= $if %>'
 <% } %>
 	option input		DROP

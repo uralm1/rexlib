@@ -172,23 +172,29 @@ task "configure", sub {
   insert_autogen_comment '/etc/config/firewall';
 
   # FIXME
-  my $lan_addr = NetAddr::IP::Lite->new($p->{lan_ip}, $p->{lan_netmask}) or die 'Lan net address calculation failure';
-  #say "CIDR: ".$lan_addr->network->cidr;
+  my $ifs = $p->{lan_ifs};
+  my @client_nets;
+  for (sort keys %$ifs) {
+    my $if = $ifs->{$_};
+    my $lan_addr = NetAddr::IP::Lite->new($if->{ip}, $if->{netmask}) or die 'Lan net address calculation failure';
+    #say "CIDR: ".$lan_addr->network->cidr;
+    push @client_nets, $lan_addr->network->cidr;
+  }
 
   # R2d2 iptables_restore firewall.user_r2d2 file
   file '/etc/firewall.user_r2d2',
     owner => "ural",
     group => "root",
     mode => 644,
-    content => template("files/firewall.user_r2d2.0.tpl",
-      _client_net => $lan_addr->network->cidr,
+    content => template("files/firewall.user_r2d2.117.tpl",
+      _client_nets => \@client_nets,
       _r2d2_head_ip => $p->{r2d2_head_ip}
     ),
     on_change => sub {
       say "R2d2 configuration was added to /etc/firewall.user_r2d2.";
       say "HEAD access granted to $p->{r2d2_head_ip}." if $p->{r2d2_head_ip};
     };
- 
+
   # R2d2 traffic shaper tc.user_r2d2 file
   file '/etc/tc.user_r2d2',
     owner => "ural",
@@ -210,7 +216,7 @@ task "configure", sub {
       say "R2d2 shaper configuration was added to /etc/tc.user_r2d2.";
       say "Traffic speed group: $p->{r2d2_speed_name}" if $p->{r2d2_speed_name};
     };
- 
+
   my $firewall_user_file = '/etc/firewall.user';
   file $firewall_user_file,
     owner => "ural",
