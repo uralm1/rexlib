@@ -25,10 +25,11 @@ task "configure", sub {
   say "Updating package database.";
   update_package_db;
   say "Installing / updating packages.";
-  for (qw/ip-full tc conntrack kmod-sched
-    iperf3 irqbalance ethtool lm-sensors lm-sensors-detect
-    strongswan-default tinc snmpd snmp-utils
-    openssh-client/) {
+  my $tc_package = operating_system_version() < 117 ? 'tc' : 'tc-full';
+  for (qq/ip-full $tc_package conntrack kmod-sched
+iperf3 irqbalance ethtool lm-sensors lm-sensors-detect
+strongswan-default tinc snmpd snmp-utils
+openssh-client/) {
     pkg $_, ensure => latest,
       on_change => sub { say "package $_ was installed." };
   }

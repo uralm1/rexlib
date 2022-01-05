@@ -40,7 +40,7 @@ task "configure", sub {
   update_package_db;
   say "Installing / updating packages for R2d2.";
   for (qw/perl make perlbase-extutils perlbase-version
-    perl-mojolicious perl-ev perl-cpanel-json-xs perl-io-socket-ssl/) {
+perl-mojolicious perl-ev perl-cpanel-json-xs perl-io-socket-ssl/) {
     pkg $_, ensure => "latest",
       on_change => sub { say "package $_ was installed." };
   }
