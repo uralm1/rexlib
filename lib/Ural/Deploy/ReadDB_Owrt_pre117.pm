@@ -112,7 +112,7 @@ nets.mask AS netmask, \
 r_table AS 'table' \
 FROM routes \
 INNER JOIN nets ON net_dst_id = nets.id \
-WHERE net_src_id = ?", {Slice=>{}, MaxRows=>500}, $p->{lan_net_id});
+WHERE router_id = ? AND net_src_id = ?", {Slice=>{}, MaxRows=>500}, $p->{router_id}, $p->{lan_net_id});
   croak "Fetching routes database failure.\n" unless $ar1;
   #say Dumper $ar1;
 
