@@ -3,8 +3,30 @@ package UtilSSH;
 use Rex -feature => ['1.3'];
 #use Rex::Commands::User;
 
+desc "Install public key to authorized_keys, for OpenWrt (Dropbear/OpenSSH supported)";
+task "install_owrt_sshkey", sub {
+  if (operating_system_is("OpenWrt")) {
+    if (is_dir("/etc/dropbear")) {
+      say "Installing for Dropbear...";
+      UtilSSH::install_dropbear_sshkey();
+    }
+
+    if (is_dir("/etc/ssh")) {
+      say "Installing for OpenSSH (global key)...";
+      UtilSSH::install_openssh_sshkey();
+    }
+
+  } else {
+    die "Unsupported operating system";
+  }
+};
+
+
 desc "Install public key to Dropbear authorized_keys, for OpenWrt";
 task "install_dropbear_sshkey", sub {
+  unless (is_dir("/etc/dropbear")) {
+    die "/etc/dropbear directory is not found. Probably this is not Dropbear system";
+  }
   if (operating_system_is("OpenWrt")) {
     file "/etc/dropbear/authorized_keys",
       source => get(cmdb('public_key')),
@@ -159,6 +181,9 @@ $::UtilSSH - SSH configuration tasks
 Путь к устанавливаемому публичному ключу берется из cmdb public_key.
 
 Для OpenWrt:
+  rex -H 10.0.1.1 UtilSSH:install_owrt_sshkey
+
+  rex -H 10.0.1.1 UtilSSH:install_dropbear_sshkey
   rex -H 10.0.1.1 UtilSSH:install_openssh_sshkey
 
 В Slackware, для юзера ttt:
@@ -174,6 +199,10 @@ $::UtilSSH - SSH configuration tasks
 =head1 TASKS
 
 =over 4
+
+=item install_owrt_sshkey
+
+Installs public key for OpenWrt. Dropbear/OpenSSH are detected automatically.
 
 =item install_dropbear_sshkey
 
