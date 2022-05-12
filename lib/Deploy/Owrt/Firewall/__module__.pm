@@ -16,8 +16,7 @@ task "configure", sub {
 
   # obsolete code begin
   if (operating_system_version() < 117) {
-    Deploy::Owrt::Firewall::obsolete::pre117::configure({confhost => $ch});
-    exit 0;
+    return Deploy::Owrt::Firewall::obsolete::pre117::configure({confhost => $ch});
   } # obsolete code end
 
   my $p = Ural::Deploy::ReadDB_Owrt->read_db($ch);
